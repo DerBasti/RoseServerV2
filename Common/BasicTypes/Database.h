@@ -1,7 +1,7 @@
 #include <mysql.h>
 #include <iostream>
-#include "D:\Programmieren\BasicObject\StringWrapper.h"
-#include "D:\Programmieren\BasicObject\SharedArrayPointer.h"
+#include "StringWrapper.h"
+#include "SharedArrayPointer.h"
 #include <memory>
 
 #ifdef _MSC_VER

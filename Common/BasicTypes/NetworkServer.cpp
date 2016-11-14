@@ -62,6 +62,9 @@ sockaddr_in NetworkInterface::GetSockaddrFromIpAndPort(String ip, unsigned int p
 	return addr;
 }
 
+NetworkClient::NetworkClient(SOCKET_TYPE sock, struct sockaddr_in addr) : NetworkClient(sock, &addr) {}
+NetworkClient::NetworkClient(SOCKET_TYPE sock, struct sockaddr_in *addr) : NetworkClient(NetworkInterface(sock, addr)) {}
+
 void NetworkClient::connect() {
 	sockaddr_in addr;
 	addr.sin_family = AF_INET;
@@ -161,7 +164,7 @@ bool NetworkServer::setupSocket() {
 	return ::bind(this->getSocket(), (const sockaddr*)&addr, sizeof(struct sockaddr)) == 0;
 }
 
-void NetworkServer::fillFDSs(fd_set *set) {
+void NetworkServer::fillFDS(fd_set *set) {
 	std::for_each(clients.begin(), clients.end(), [&, this](NetworkClient* ni) {
 		if (ni->isActive()) {
 			FD_SET(ni->getSocket(), set);

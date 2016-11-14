@@ -22,7 +22,7 @@ Entity* Map::getEntity(const word_t localId) {
 }
 
 bool Map::updateEntity(Entity* entity) {
-	return this->updateEntity(entity != nullptr ? entity->getBasicInformation()->getLocalId() : 0x00);
+	return this->updateEntity(entity != nullptr ? entity->getBasicInformation()->getLocalId() : static_cast<word_t>(0x00));
 }
 
 bool Map::updateEntity(const word_t localId) {
@@ -35,7 +35,7 @@ bool Map::updateEntity(const word_t localId) {
 }
 
 bool Map::hasEntity(Entity* entity) const {
-	return this->hasEntity(entity != nullptr ? entity->getBasicInformation()->getLocalId() : 0x00);
+	return this->hasEntity(entity != nullptr ? entity->getBasicInformation()->getLocalId(): static_cast<word_t>(0x00));
 }
 
 bool Map::hasEntity(const word_t localId) const {

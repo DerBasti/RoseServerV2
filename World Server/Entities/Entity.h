@@ -16,20 +16,20 @@ typedef unsigned long long qword_t;
 
 class EntityInfo {
 private:
-	dword_t localId;
+	word_t localId;
 	bool ingameFlag;
 public:
 	EntityInfo() : EntityInfo(0) {}
-	EntityInfo(unsigned long localId) {
+	EntityInfo(const word_t localId) {
 		this->localId = localId;
 		this->ingameFlag = false;
 	}
 	virtual ~EntityInfo() {}
 
-	__inline dword_t getLocalId() const {
+	__inline word_t getLocalId() const {
 		return this->localId;
 	}
-	__inline void setLocalId(const dword_t id) {
+	__inline void setLocalId(const word_t id) {
 		this->localId = id;
 	}
 

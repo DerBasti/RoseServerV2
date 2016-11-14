@@ -1,7 +1,7 @@
 #ifndef __ROSE_SOCKET_CLIENT__
 #define __ROSE_SOCKET_CLIENT__
 
-#include "D:\Programmieren\BasicObject\NetworkServer.h"
+#include "BasicTypes\NetworkServer.h"
 #include "rosecrypt.h"
 #include "datatypes.h"
 

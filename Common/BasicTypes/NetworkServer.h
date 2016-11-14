@@ -120,8 +120,8 @@ class NetworkClient : public NetworkInterface {
 			this->forcedOffset = off;
 		}
 	public:
-		explicit NetworkClient(SOCKET sock, sockaddr_in addr) : NetworkClient(sock, &addr) {}
-		explicit NetworkClient(SOCKET sock, sockaddr_in *addr) : NetworkClient(NetworkInterface(sock, addr)) {}
+		explicit NetworkClient(SOCKET_TYPE sock, struct sockaddr_in addr);
+		explicit NetworkClient(SOCKET_TYPE sock, struct sockaddr_in *addr);
 
 		explicit NetworkClient(NetworkInterface& iFace) : NetworkClient(&iFace) {}
 		explicit NetworkClient(NetworkInterface* iFace) : NetworkClient() {
@@ -196,10 +196,6 @@ class NetworkClient : public NetworkInterface {
 		}
 };
 
-#ifndef SOMAXCONN
-#define SOMAXCONN 128
-#endif
-
 class NetworkServer : public NetworkInterface {
 	protected:
 		std::vector<NetworkClient*> clients;
@@ -211,7 +207,7 @@ class NetworkServer : public NetworkInterface {
 		SOCKET_TYPE maxFileDescriptors;
 
 		bool setupSocket();
-		void fillFDSs(struct fd_set *set);
+		void fillFDS(struct fd_set *set);
 		void addNewClient(SOCKET_TYPE sock, struct sockaddr_in* addr);
 
 		void disconnectClient(NetworkClient* ni) {
@@ -229,7 +225,7 @@ class NetworkServer : public NetworkInterface {
 			ni = nullptr;
 		}
 
-		void handleClients(FD_SET* fds);
+		void handleClients(struct fd_set* fds);
 public:
 		NetworkServer(const char *serverIp, unsigned short port) : NetworkServer(String(serverIp), port) {
 		}

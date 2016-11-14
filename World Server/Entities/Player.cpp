@@ -49,7 +49,8 @@ bool Player::loadCharacterInformation() {
 	moneySlot = Item(ItemType::MONEY, 0x00);
 	moneySlot.setAmount(charInfoRow.get(0x07).toInt());
 
-	this->getPositionInformation()->setMapId(charInfoRow.get(0x09).toShort());
+	const word_t mapId = charInfoRow.get(0x09).toShort();
+	this->getPositionInformation()->setMap(nullptr); //TODO
 	this->getPositionInformation()->setCurrent(Position(5200, 5200));
 	this->getPositionInformation()->setDestination(this->getPositionInformation()->getCurrent());
 
@@ -89,7 +90,7 @@ bool Player::loadCharacterInventory() {
 		byte_t slotId = row.get(0x00).toByte();
 		Item& item = this->getCharacter()->getInventory()->get(slotId);
 		item = Item(row.get(0x01).toInt() / 10000, row.get(0x01).toInt() % 10000);
-		item.setDurability(row.get(0x02).toShort());
+		item.setDurability(row.get(0x02).toByte());
 		item.setLifeSpan(row.get(0x03).toShort());
 		item.setAmount(row.get(0x04).toInt());
 		//Refine?
@@ -120,7 +121,7 @@ bool Player::sendGamingPlan() {
 bool Player::sendPlayerInformation() {
 	Packet pak(PacketID::World::Response::PLAYER_INFOS);
 	pak.addByte(this->getCharacter()->getAppearance()->getSex());
-	pak.addWord(this->getPositionInformation()->getMapId());
+	pak.addWord(this->getPositionInformation()->getMap()->getId());
 	pak.addFloat(this->getPositionInformation()->getCurrent().getX());
 	pak.addFloat(this->getPositionInformation()->getCurrent().getY());
 	pak.addWord(0x00); //SAVED POSITION
