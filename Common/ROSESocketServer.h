@@ -11,9 +11,12 @@
 #include "..\Common\BasicTypes\Config.h"
 #include "..\Common\BasicTypes\File.h"
 #include "..\Common\rosecrypt.h"
-#define WIN32_LEAN_AND_MEAN
+
 #include <mysql.h>
 #include <type_traits>
+
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "libmysql")
 
 class ROSEServer : public NetworkServer {
 private:

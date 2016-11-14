@@ -52,17 +52,17 @@ class VFS {
 		std::vector<String> loadedFileEndings;
 		static VFS* instance;
 
-		typedef dword_t(__stdcall* OpenVFS_FUNCPTR)(const char*, const char*);
-		typedef dword_t(__stdcall* CloseVFS_FUNCPTR)(dword_t fileHandle);
-		typedef dword_t(__stdcall* GetVFSCount_FUNCPTR)(dword_t fileHandle);
-		typedef void(__stdcall* GetVFSNames_FUNCPTR)(dword_t fileHandle, char **array, dword_t arrayLen, word_t lengthOfSingleArrayItem);
-		typedef dword_t(__stdcall* GetFileCount_FUNCPTR)(dword_t fileHandle, const char* vfsName);
-		typedef void(__stdcall* GetFileNames_FUNCPTR)(dword_t fileHandle, const char* vfsName, char **fileNameArray, DWORD lengthOfArray, dword_t maxStringLength);
-		typedef dword_t(__stdcall* OpenFile_FUNCPTR)(const char* fileName, dword_t fileHandle);
-		typedef dword_t(__stdcall* RemoveFile_FUNCPTR)(dword_t handle, const char* fileName);
-		typedef void(__stdcall* CloseFile_FUNCPTR)(dword_t fileHandle);
-		typedef dword_t(__stdcall* ReadFile_FUNCPTR)(void* buffer, dword_t size, dword_t count, dword_t fileHandle);
-		typedef dword_t(__stdcall* GetFileSize_FUNCPTR)(dword_t fileHandle);
+		typedef unsigned long(__stdcall* OpenVFS_FUNCPTR)(const char*, const char*);
+		typedef unsigned long(__stdcall* CloseVFS_FUNCPTR)(unsigned long fileHandle);
+		typedef unsigned long(__stdcall* GetVFSCount_FUNCPTR)(unsigned long fileHandle);
+		typedef void(__stdcall* GetVFSNames_FUNCPTR)(unsigned long fileHandle, char **array, unsigned long arrayLen, unsigned short lengthOfSingleArrayItem);
+		typedef unsigned long(__stdcall* GetFileCount_FUNCPTR)(unsigned long fileHandle, const char* vfsName);
+		typedef void(__stdcall* GetFileNames_FUNCPTR)(unsigned long fileHandle, const char* vfsName, char **fileNameArray, unsigned long lengthOfArray, unsigned long maxStringLength);
+		typedef unsigned long(__stdcall* OpenFile_FUNCPTR)(const char* fileName, unsigned long fileHandle);
+		typedef unsigned long(__stdcall* RemoveFile_FUNCPTR)(unsigned long handle, const char* fileName);
+		typedef void(__stdcall* CloseFile_FUNCPTR)(unsigned long fileHandle);
+		typedef unsigned long(__stdcall* ReadFile_FUNCPTR)(void* buffer, unsigned long size, unsigned long count, unsigned long fileHandle);
+		typedef unsigned long(__stdcall* GetFileSize_FUNCPTR)(unsigned long fileHandle);
 
 		OpenVFS_FUNCPTR OpenVFS;
 		CloseVFS_FUNCPTR CloseVFS;

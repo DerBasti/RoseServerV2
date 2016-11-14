@@ -7,25 +7,36 @@
 
 #include "..\Common\datatypes.h"
 #include <map>
+#include <vector>
 
 class Map {
 public:
 	class Sector {
 	private:
+		word_t sectorId;
 	public:
+		Sector() : Sector(0) {}
+		explicit Sector(const word_t id) {
+			this->sectorId = id;
+		}
+
+		__inline word_t getId() const {
+			return this->sectorId;
+		}
 	};
 private:
-	const static word_t MAX_LOCAL_CLIENTS = 0x10000;
+	const static word_t MAX_LOCAL_CLIENTS = 0xFFFF;
 
 	word_t id;
-	std::map<word_t, Sector*> sectors;
-	std::map<word_t, class Entity*> entities;
+	std::map<word_t, std::pair<class Entity*, Map::Sector*>> entitiesOnMap;
 public:
 	Map() : Map(0) {}
 	explicit Map(const word_t id);
 	virtual ~Map();
 
-	bool setEntity(class Entity* entity);
+	bool addEntity(class Entity* entity);
+	bool updateEntity(class Entity* entity);
+	bool updateEntity(const word_t localId);
 	void clearEntity(class Entity* entity);
 	class Entity* getEntity(const word_t localId);
 

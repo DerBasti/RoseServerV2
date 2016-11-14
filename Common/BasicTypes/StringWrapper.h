@@ -10,14 +10,6 @@
 #include <vector>
 #include <time.h>
 #include <iostream>
-#ifndef _MSC_VER
-#include <sys/time.h>
-#else
-#include <Windows.h>
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#endif
 
 #ifdef _MSC_VER
 #define SPRINTF sprintf_s

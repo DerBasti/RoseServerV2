@@ -8,9 +8,6 @@
 #ifndef _MSC_VER
 #include <dirent.h>
 #endif
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 class FileType : public BasicObject {
 private:
@@ -24,11 +21,11 @@ class File : public BasicObject {
 		friend class FileWriter;
 		friend class FileReader;
 		FILE *handle;
-		DWORD fileFlags;
+		unsigned long fileFlags;
 
 #ifdef _WIN32
-#define INVALID_FILE_ATTRIBS INVALID_FILE_ATTRIBUTES
-#define FOLDER_ATTRIBUTE FILE_ATTRIBUTE_DIRECTORY
+#define INVALID_FILE_ATTRIBS ((unsigned long)-1)
+#define FOLDER_ATTRIBUTE 0x00000010 
 #else
 		INVALID_FILE_ATTRIBS 0x00
 #define FOLDER_ATTRIBUTE 0x00
@@ -46,6 +43,8 @@ class File : public BasicObject {
 		String path;
 		unsigned long long fileSize;
 		unsigned long long currentPosition;
+
+		unsigned long getFileAttributes();
 
 		__inline FILE *getHandle() const {
 			return this->handle;
@@ -67,7 +66,7 @@ class File : public BasicObject {
 		}
 
 		bool openWithMode(const char* rights) {
-			this->fileFlags = GetFileAttributesA(path.toConstChar());
+			this->fileFlags = this->getFileAttributes();
 			if (!this->getHandle() && fopen_s(&this->handle, this->path.toConstChar(), rights) == 0) {
 				fseek(this->handle, 0, SEEK_END);
 				this->fileSize = File_TellOffset(this->handle);
@@ -119,17 +118,7 @@ class File : public BasicObject {
 			return this->path;
 		}
 
-		__inline String getAbsolutePath() const {
-			String result = String();
-#ifdef _WIN32
-			char buf[0x201] = {0x00};
-			_fullpath(buf, this->path.toConstChar(), 0x200);
-			result = String(buf);
-#else
-
-#endif
-			return result;
-		}
+		String getAbsolutePath() const;
 
 		__inline static bool Exists(const String& s) {
 			return File::Exists(s.toConstChar());
@@ -148,11 +137,7 @@ class File : public BasicObject {
 			return File(path).isFile();
 		}
 
-		static String GetProcessFileNameWithPath() {
-			char buffer[0x200] = { 0x00 };
-			GetModuleFileNameA(NULL, buffer, 0x200);
-			return String(buffer);
-		}
+		static String GetProcessFileNameWithPath();
 
 		static String GetProcessFileName() {
 			String result = GetProcessFileNameWithPath();
@@ -172,75 +157,13 @@ class File : public BasicObject {
 			return (this->exists() && (this->fileFlags & FOLDER_ATTRIBUTE) != 0);
 		}
 
-		unsigned long long getLastModificationTime() const {
-			unsigned long long result = 0x00;
-#ifdef _WIN32
-			HANDLE hFile = CreateFileA(this->getPath().toConstChar(), GENERIC_READ, FILE_SHARE_READ, NULL,
-				OPEN_EXISTING, 0, NULL);
-			if(hFile) {
-				FILETIME ftCreate, ftAccess, ftWrite;
-				SYSTEMTIME stUTC;
-				if (!GetFileTime(hFile, &ftCreate, &ftAccess, &ftWrite)) {
-					return 0x00;
-				}
-				FileTimeToSystemTime(&ftWrite, &stUTC); 
-
-				std::tm tm;
-				tm.tm_sec = stUTC.wSecond;
-				tm.tm_min = stUTC.wMinute;
-				tm.tm_hour = stUTC.wHour;
-				tm.tm_mday = stUTC.wDay;
-				tm.tm_mon = stUTC.wMonth - 1;
-				tm.tm_year = stUTC.wYear - 1900;
-				tm.tm_isdst = -1;
-				result = std::mktime(&tm);
-			}
-#else
-
-#endif
-			return result;
-		}
+		unsigned long long getLastModificationTime() const;
 
 		static SharedArrayPtr<String> GetFiles(const char *path) {
 			return GetFiles(path, false);
 		}
 
-		static SharedArrayPtr<String> GetFiles(const char *path, bool includeDirToFileName) {
-			std::vector<String> tmpResult;
-#ifndef _MSC_VER
-			DIR *dir;
-			struct dirent *ent;
-			if ((dir = opendir (path)) != NULL) {
-				/* print all the files and directories within directory */
-
-				String strPath = (includeDirToFileName ? String(path) : String("."));
-				if(!strPath.endsWith("\\")) {
-					strPath += '\\';
-				}
-				while ((ent = readdir (dir)) != NULL) {
-					tmpResult.push_back(strPath + String(ent->d_name));
-				}
-				closedir (dir);
-			}
-#else
-			WIN32_FIND_DATAA fileData;
-			HANDLE handle = FindFirstFileA(path, &fileData);
-			if (handle != INVALID_HANDLE_VALUE) {
-				do {
-					tmpResult.push_back(String(fileData.cFileName));
-				} while (FindNextFileA(handle, &fileData));
-				FindClose(handle);
-			}
-#endif
-			if(tmpResult.size() == 0) {
-				return SharedArrayPtr<String>();
-			}
-			SharedArrayPtr<String> result(new String[tmpResult.size()-2], static_cast<unsigned long>(tmpResult.size()-2));
-			for(unsigned int i=2;i<tmpResult.size();i++) {
-				result[i-2] = tmpResult.at(i);
-			}
-			return result;
-		}
+		static SharedArrayPtr<String> GetFiles(const char *path, bool includeDirToFileName);
 
 		__inline unsigned long long getFileSize() const {
 			return this->fileSize;
@@ -250,19 +173,7 @@ class File : public BasicObject {
 			(*p) = File::GetFiles(path);
 		}
 
-		bool createSubdirectory(const String& dirName) const {
-			String currentPath = this->path;
-			if (this->isFolder() && !currentPath.endsWith("\\")) {
-				currentPath += "\\";
-			}
-			int lastPosition = currentPath.lastPositionOf("\\")+1;
-			String newPath = currentPath.substring(0, lastPosition);
-#ifdef _WIN32
-			return CreateDirectoryA((newPath + dirName).toConstChar(), NULL) != 0;
-#else
-			return false;
-#endif
-		}
+		bool createSubdirectory(const String& dirName) const;
 
 		__inline bool createSubdirectory(const char *dirName) const {
 			return this->createSubdirectory(String(dirName));
@@ -282,8 +193,5 @@ class File : public BasicObject {
 		}
 
 };
-
-#include "FileReader.h"
-#include "FileWriter.h"
 
 #endif

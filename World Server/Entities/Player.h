@@ -82,7 +82,7 @@ public:
 	__inline Item& get(const byte_t slot) {
 		return this->items[slot];
 	}
-	__inline Item& operator[](unsigned long pos) {
+	__inline Item& operator[](const byte_t pos) {
 		return this->get(pos);
 	}
 };

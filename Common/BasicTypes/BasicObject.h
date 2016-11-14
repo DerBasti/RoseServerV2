@@ -143,14 +143,4 @@ public:
 	}
 };
 
-class HandleCloser : public Autoclose<HANDLE> {
-public:
-	HandleCloser(HANDLE handle) {
-		this->setHandle(handle);
-		this->setAutoclose([this]() {
-			::CloseHandle(this->get());
-		});
-	}
-};
-
 #endif //__BASIC_OBJECT__

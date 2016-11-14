@@ -7,6 +7,7 @@
 
 #include "..\..\Common\BasicTypes\StoppableClock.h"
 #include "..\..\Common\BasicTypes\Observable.h"
+#include "..\Map.h"
 
 typedef unsigned char byte_t;
 typedef unsigned short word_t;
@@ -67,18 +68,22 @@ class PositionInformation {
 private:
 	Position current;
 	Position dest;
-	word_t mapId;
+	Map* map;
+	Map::Sector* currentSector;
 public:
-	PositionInformation() {}
+	PositionInformation() {
+		map = nullptr;
+		currentSector = nullptr;
+	}
 	virtual ~PositionInformation() {}
 
 	PositionInformation& operator=(const PositionInformation& other) = default;
 
-	__inline word_t getMapId() const {
-		return this->mapId;
+	__inline Map* getMap() const {
+		return this->map;
 	}
-	__inline void setMapId(const word_t mapId) {
-		this->mapId = mapId;
+	__inline void setMap(Map* map) {
+		this->map = map;
 	}
 
 	__inline Position getCurrent() const {

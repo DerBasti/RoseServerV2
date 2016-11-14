@@ -3,23 +3,17 @@
 #ifndef __COMMON_DATATYPES__
 #define __COMMON_DATATYPES__
 
-#include <WinSock2.h>
-#include <Windows.h>
 #include <iostream>
 #include <string>
 #include <xutility>
 #include <xmemory>
 #include <vector>
-#include <mysql.h>
 #include "..\Common\BasicTypes\BasicObject.h"
 #include "..\Common\DatabaseQueries.h"
 #include "..\Common\BasicTypes\Database.h"
 #include "..\Common\BasicTypes\Observable.h"
 
 #include "Definitions.h"
-
-#pragma comment(lib, "Ws2_32.lib")
-#pragma comment(lib, "libmysql")
 
 class Packet {
 public:

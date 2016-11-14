@@ -6,29 +6,32 @@ Map::Map(const word_t id) {
 }
 
 Map::~Map() {
-
 }
 
-bool Map::setEntity(Entity* entity) {
-	if (this->entities.size() == Map::MAX_LOCAL_CLIENTS) {
-		return false;
-	}
-	word_t newId = 0x00;
-	auto iterator = this->entities.end();
-	do {
-		newId = rand();
-		iterator = this->entities.find(newId);
-	} while (iterator == this->entities.end() && newId > 0);
-	entity->getBasicInformation()->setLocalId(newId);
+
+bool Map::addEntity(Entity* entity) {
 	return true;
 }
 
 Entity* Map::getEntity(const word_t localId) {
 	Entity* entity = nullptr;
-	if (localId != 0 && this->entities.count(localId) > 0) {
-		entity = this->entities[localId];
+	if (localId != 0 && this->entitiesOnMap.count(localId) > 0) {
+		entity = this->entitiesOnMap[localId].first;
 	}
 	return entity;
+}
+
+bool Map::updateEntity(Entity* entity) {
+	return this->updateEntity(entity != nullptr ? entity->getBasicInformation()->getLocalId() : 0x00);
+}
+
+bool Map::updateEntity(const word_t localId) {
+	auto result = this->entitiesOnMap.find(localId);
+	if (result != this->entitiesOnMap.end()) {
+		auto pair = result->second;
+		//TODO
+	}
+	return result != this->entitiesOnMap.end();
 }
 
 bool Map::hasEntity(Entity* entity) const {
@@ -36,9 +39,9 @@ bool Map::hasEntity(Entity* entity) const {
 }
 
 bool Map::hasEntity(const word_t localId) const {
-	return this->entities.count(localId) > 0;
+	return this->entitiesOnMap.count(localId) > 0;
 }
 
 void Map::clearEntity(Entity* entity) {
-	this->entities[entity->getBasicInformation()->getLocalId()] = nullptr;
+	this->entitiesOnMap.erase(entity->getBasicInformation()->getLocalId());
 }

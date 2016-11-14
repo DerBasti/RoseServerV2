@@ -55,8 +55,8 @@ public:
 	public:
 		DataSet(const SharedArrayPtr<char>& data) {
 			char *dataPointer = data.get();
-			this->length = *((DWORD*)dataPointer);
-			this->opCode = *((DWORD*)&dataPointer[0x04]);
+			this->length = *((dword_t*)dataPointer);
+			this->opCode = *((dword_t*)&dataPointer[0x04]);
 
 			const unsigned long headerOffset = 0x08;
 			if (this->getLength() > headerOffset) {
@@ -241,7 +241,7 @@ public:
 				AIP::State currentState;
 				bfr.setCaret(bfr.getCaret() + 0x20); //Fixed string size of 32 bytes
 
-				DWORD recordAmount = bfr.readDWord();
+				dword_t recordAmount = bfr.readDWord();
 				for (unsigned int j = 0; j < recordAmount; j++) {
 					bfr.setCaret(bfr.getCaret() + 0x20);
 					AIP::State::Record newRecord;
@@ -251,7 +251,7 @@ public:
 						unsigned long amount = bfr.readDWord();
 						for (unsigned int y = 0; y < amount; y++) {
 							unsigned long length = bfr.readDWord();
-							bfr.setCaret(bfr.getCaret() - sizeof(DWORD));
+							bfr.setCaret(bfr.getCaret() - sizeof(dword_t));
 							SharedArrayPtr<char> data = bfr.readBinary(length);
 							(newRecord.*function)(data);
 						}
