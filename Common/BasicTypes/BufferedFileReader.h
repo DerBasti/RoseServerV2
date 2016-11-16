@@ -5,8 +5,9 @@
 
 class BufferedFileReader : public FileReader {
     private:
-        char *data;
+        const char *data;
         unsigned long long size;
+		bool dataCopied;
         
         void internalRead(void *storagePtr, unsigned long len) {
             if(this->isInInvalidState()) {
@@ -27,18 +28,28 @@ class BufferedFileReader : public FileReader {
 #ifdef _MSC_VER
 #pragma warning(disable:4244)
 #endif
-        BufferedFileReader(const char *d, unsigned long long len) {
-            this->size = len;
-            this->data = new char[this->getFileSize()];
-            memcpy(this->data, d, this->getFileSize());
+        BufferedFileReader(const char *d, unsigned long long len) : BufferedFileReader(d, len, true) {}
+		BufferedFileReader(const char *d, unsigned long long len, bool copyData) {
+			this->size = len;
+			this->dataCopied = copyData;
+			if (this->dataCopied) {
+				char *cpyData = new char[this->getFileSize()];
+				memcpy(cpyData, d, this->getFileSize());
+				this->data = cpyData;
+			}
+			else {
+				this->data = d;
+			}
 		}
 #ifdef _MSC_VER
 #pragma warning(default:4244)
 #endif
 
 		virtual ~BufferedFileReader() {
-			delete[] this->data;
-			this->data = nullptr;
+			if (this->dataCopied) {
+				delete[] this->data;
+				this->data = nullptr;
+			}
 		}
 
 

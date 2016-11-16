@@ -1,6 +1,5 @@
 #include "LoginServer.h"
 #include "LoginClient.h"
-#include "D:\Programmieren\BasicObject\Config.h"
 
 
 LoginServer::~LoginServer() {

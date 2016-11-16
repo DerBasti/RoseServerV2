@@ -14,10 +14,8 @@ class FileReader : public BasicObject {
     protected:
         File file;
         unsigned long long currentPos;
-        
-        __inline bool ignoreCarriageReturn() const {
-            return false;
-        }
+		bool ignoreCarriageReturnFlag;
+
         virtual bool isInInvalidState() const {
 			if (!this->getFile()->exists()) {
 				return true;
@@ -48,7 +46,7 @@ class FileReader : public BasicObject {
 				result += c;
                 unsigned char predResult = f(c, result.length());
 				if (predResult & (STRING_READ_ABORT | STRING_READ_SKIP)) {
-					result = result.substring(0, result.length() - 1);
+					result = result.length() == 1 ? String() : result.substring(0, result.length() - 1);
 				}
 				if (predResult & (STRING_READ_ABORT | STRING_MAX_LENGTH)) {
 					break;
@@ -59,12 +57,14 @@ class FileReader : public BasicObject {
 		FileReader() {
 			this->file = nullptr;
 			this->currentPos = 0;
+			this->ignoreCarriageReturnFlag = false;
 		}
     public:
         explicit FileReader(const File& f) {
             this->file = f;
             this->currentPos = 0;
             this->file.openWithMode("rb");
+			this->ignoreCarriageReturnFlag = false;
         }
         FileReader(const char *path) : FileReader(File(path)) {}
         explicit FileReader(const String& s) : FileReader(s.toConstChar()) {}
@@ -78,8 +78,10 @@ class FileReader : public BasicObject {
         
         READ_FUNC(readByte, byte_t);
         READ_FUNC(readWord, word_t);
-        READ_FUNC(readDWord, dword_t);
-        READ_FUNC(readQWord, qword_t);
+		READ_FUNC(readDWord, dword_t);
+		READ_FUNC(readQWord, qword_t);
+		READ_FUNC(readFloat, float);
+		READ_FUNC(readDouble, double);
         
 #undef READ_FUNC
         
@@ -156,6 +158,14 @@ class FileReader : public BasicObject {
 #ifdef _MSC_VER
 #pragma warning(default:4244)
 #endif
+
+		__inline bool ignoreCarriageReturn() const {
+			return ignoreCarriageReturnFlag;
+		}
+
+		__inline bool setIgnoreCarriageReturn(bool flag) {
+			this->ignoreCarriageReturnFlag = flag;
+		}
         
         __inline File* getFile() const {
             return (File *)&this->file;

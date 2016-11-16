@@ -45,7 +45,7 @@ bool CharServer::addCharacter(const unsigned long accId, Character& newChar) {
 	for (unsigned int i = 0; i < 3; i++) {
 		Statement addingItemStatement(DBQueries::Insert::ADD_ITEM_MINIMALISTIC);
 		addingItemStatement.setInt(newChar.id);
-		addingItemStatement.setInt(defaultItems[i].itemType);
+		addingItemStatement.setInt(defaultItems[i].getType());
 		addingItemStatement.setInt(defaultItems[i].toUniqueId());
 
 		transaction.addStatement(addingItemStatement);

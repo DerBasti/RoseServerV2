@@ -22,12 +22,15 @@ VFS::VFS(const String& gameFolder, bool excludeDifferentFileEndings, std::vector
 		this->GetFileSize = reinterpret_cast<GetFileSize_FUNCPTR>(GetProcAddress(triggerVFS, "_vfgetsize@4"));
 
 		VFS::instance = this;
-		this->loadedFileEndings = fileEndingsToLoad;
-
+		std::for_each(fileEndingsToLoad.begin(), fileEndingsToLoad.end(), [this](String& str) {
+			this->loadedFileEndings.push_back(str.toUpper());
+		});
+		std::cout << "Starting to index the VFS-files...\n";
 		this->vfsHandle = this->OpenVFS((this->gameFolder + "data.idx").toConstChar(), "r");
 		std::vector<String> vfsNames = extractVFSNames(this->GetVFSCount(this->getVFSHandle()) - 1);
 		this->extractFilePaths(vfsNames, fileEndingsToLoad, excludeDifferentFileEndings);
 		this->extractFileContent(fileEndingsToLoad);
+		std::cout << "Indexing finished.\n";
 	}
 }
 		
@@ -97,6 +100,9 @@ void VFS::extractFilePaths(std::vector<String> vfsNames, std::vector<String> fil
 SharedArrayPtr<char> VFS::readFile(const String& path) {
 	this->currentFileHandle = this->OpenFile(path.toConstChar(), this->getVFSHandle());
 	unsigned long fileLength = this->GetFileSize(this->currentFileHandle);
+	if (this->currentFileHandle == 0x00 || fileLength == 0x00) {
+		return SharedArrayPtr<char>();
+	}
 
 	SharedArrayPtr<char> tempBuf(new char[fileLength], fileLength);
 	memset(tempBuf.get(), 0x00, fileLength);
@@ -118,4 +124,31 @@ void VFS::extractFileContent(std::vector<String> fileEndingsToLoad) {
 			}
 		}
 	});
+}
+std::vector<VFS::Entry> VFS::getEntriesFromPath(const String& path, std::vector<String> fileEndingsToGet) const {
+	std::vector<VFS::Entry> resultSet;
+	String pathAsUpperCase = path.toUpper();
+	bool hasFileEndings = fileEndingsToGet.size() > 0;
+
+	std::function<void(const std::pair<const String, VFS::Entry>&)> getterFunction;
+	if (hasFileEndings) {
+		getterFunction = [&](const std::pair<const String, VFS::Entry>& pair) {
+			if (pair.first.contains(pathAsUpperCase)) {
+				for (unsigned int i = 0; i < fileEndingsToGet.size(); i++) {
+					if (pair.first.endsWith(fileEndingsToGet[i])) {
+						resultSet.push_back(pair.second);
+						break;
+					}
+				}
+			}
+		};
+	} else {
+		getterFunction = [&](const std::pair<const String, VFS::Entry>& pair) {
+			if (pair.first.contains(pathAsUpperCase)) {
+				resultSet.push_back(pair.second);
+			}
+		};
+	}
+	std::for_each(this->content.cbegin(), this->content.cend(), getterFunction);
+	return resultSet;
 }

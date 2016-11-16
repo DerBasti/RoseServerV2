@@ -21,7 +21,7 @@ class VFS {
 			Entry() : Entry(nullptr) {}
 			Entry(const char* pathInVFS) : Entry(String(pathInVFS)) { }
 			Entry(const String& pathInVFS) {
-				this->pathInVFS = pathInVFS;
+				this->pathInVFS = pathInVFS.toUpper();
 			}
 			virtual ~Entry() {
 				this->pathInVFS.clear();
@@ -106,12 +106,27 @@ class VFS {
 			return this->getEntry(String(path));
 		}
 		VFS::Entry getEntry(const String& path) const {
-			auto result = this->content.find(path);
+			auto result = this->content.find(path.toUpper());
 			if (result == this->content.cend()) {
 				return VFS::Entry();
 			}
 			return (*result).second;
 		}
+
+		__inline std::vector<VFS::Entry> getEntriesFromPath(const char *path) const {
+			return this->getEntriesFromPath(String(path));
+		}
+
+		std::vector<VFS::Entry> getEntriesFromPath(const String& path) const {
+			return this->getEntriesFromPath(path, std::vector<String>());
+		}
+		std::vector<VFS::Entry> getEntriesFromPath(const String& path, const String& fileEnding) const {
+			return this->getEntriesFromPath(path, std::vector<String>{fileEnding.toUpper()});
+		}
+		__inline std::vector<VFS::Entry> getEntriesFromPath(const char *path, std::vector<String> fileEndingsToGet) const {
+			return this->getEntriesFromPath(String(path), fileEndingsToGet);
+		}
+		std::vector<VFS::Entry> getEntriesFromPath(const String& path, std::vector<String> fileEndingsToGet) const;
 
 		__inline static VFS* get() {
 			return VFS::instance;

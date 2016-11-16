@@ -205,6 +205,10 @@ public:
 		this->id = id;
 	}
 
+	__inline bool operator!=(const Item& item) const {
+		return this->getId() != item.getId() && this->getType() != item.getType() && this->getAmount() != item.getAmount();
+	}
+		 
 	const dword_t getVisualityData() const {
 		dword_t basicResult = (this->id | this->refine * 0x10000);
 		if (this->gem != 0) {
@@ -242,6 +246,10 @@ public:
 
 	__inline bool isValid() const {
 		return this->getType() != 0 && this->getId() > 0 && this->getAmount() > 0;
+	}
+
+	dword_t toUniqueId() const {
+		return this->getId() + (this->getType() * 10000);
 	}
 
 	__inline word_t getId() const {
@@ -282,6 +290,13 @@ public:
 		this->durability = newDura;
 	}
 
+	__inline word_t getRefineLevel() const {
+		return this->refine;
+	}
+	__inline void setRefineLevel(const word_t level) {
+		this->refine = level;
+	}
+
 	void clear() {
 		this->type = 0x00;
 		this->id = 0x00;
@@ -294,6 +309,29 @@ public:
 		}
 	}
 
+};
+
+class Position {
+private:
+	float x;
+	float y;
+	StoppableClock lastCheckTime;
+public:
+	Position() : Position(0.0f, 0.0f) {}
+	Position(const float x, const float y) {
+		this->x = x;
+		this->y = y;
+		this->lastCheckTime.start();
+	}
+	virtual ~Position() {}
+	Position& operator=(const Position& pos) = default;
+
+	__inline float getX() const {
+		return this->x;
+	}
+	__inline float getY() const {
+		return this->y;
+	}
 };
 
 #endif //__COMMON_DATATYPES__

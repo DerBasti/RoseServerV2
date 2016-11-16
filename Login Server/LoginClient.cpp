@@ -28,8 +28,7 @@ bool LoginClient::pakRequestChannelList() {
 		pak.addWord(0x01); //ID
 		pak.addByte(0x00); //?
 		pak.addWord(0x00); //STATUS
-		pak.addString("TestChannel"); //NAME
-		pak.addByte(0x00);
+		pak.addString(ROSEServer::getServer<LoginServer>()->getConfig().get("ChannelName")); //NAME
 	//}
 	//else {
 	//	pak.addByte(0x00);
@@ -59,7 +58,7 @@ bool LoginClient::pakUserLogin() {
 	this->accountInfo.password = content.substring(0, 0x20);
 	this->accountInfo.userName = content.substring(0x20, content.length() - 0x20);
 
-	Statement request(LoginServer::getDB(), DBQueries::Select::ACCOUNT_INFOS);
+	Statement request(ROSEServer::getDatabase(), DBQueries::Select::ACCOUNT_INFOS);
 	request.setString(this->accountInfo.userName);
 	auto result = request.executeWithResult();
 	if (!result.get()->hasResult()) {
@@ -81,9 +80,7 @@ bool LoginClient::pakUserLogin() {
 	
 	//0x30 + ID
 	pak.addByte(0x31);
-	pak.addString("TestServer");
-	//pak.addString(config->getValueString("ServerName"));
-	pak.addByte(0x00);
+	pak.addString(ROSEServer::getServer<LoginServer>()->getConfig().get("ServerName"));
 
 	//ChannelId
 	pak.addDWord(0x01);
@@ -96,14 +93,15 @@ bool LoginClient::pakRequestChannelIP() {
 	DWORD serverId = this->getPacket().getDWord(0x00);
 	BYTE channel = this->getPacket().getByte(0x04);
 
+	auto server = ROSEServer::getServer<LoginServer>();
+
 	Packet pak(PacketID::Login::Response::GET_CHANNEL_IP);
 	pak.addByte(0x00); //Channel status
 	pak.addDWord(this->accountInfo.userId);
 	pak.addDWord(0x87654321); //Encryption
 	//pak.addString(config->getValueString("ChannelIp"));
-	pak.addString("127.0.0.1");
-	pak.addByte(0x00);
-	pak.addWord(29100); //PORT
+	pak.addString(server->getConfig().get("ChannelIp"));
+	pak.addWord(server->getConfig().get("ChannelPort").toInt()); //PORT
 
 	return this->sendPacket(pak);
 }

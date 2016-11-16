@@ -26,7 +26,7 @@ public:
 		String line = String();
 		while (!fr.hasInvalidState()) {
 			line = fr.readLine();
-			if (line.isEmpty()) {
+			if (line.isEmpty() || (line.length() == 1 && (line[0] == '\r' || line[0] == '\n'))) {
 				continue;
 			}
 			SharedArrayPtr<String> tokenized(line.split("=", nullptr), 2);

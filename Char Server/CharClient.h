@@ -4,43 +4,6 @@
 #define __ROSE_CHAR_CLIENT__
 
 #include "..\Common\ROSESocketClient.h"
-#include "D:\Programmieren\QuickInfos\LinkedList.h"
-
-struct Item {
-	DWORD owner;
-	BYTE itemType;
-	WORD itemId;
-	BYTE refineLevel;
-	BYTE durability;
-	BYTE lifespan;
-
-	Item() {
-		this->owner = 0x00;
-		this->itemId = 0x00;
-		this->itemType = this->refineLevel = this->durability = this->lifespan = 0x00;
-	}
-	Item(unsigned int itemType, unsigned int itemId) {
-		this->itemType = itemType;
-		this->itemId = itemId;
-		this->durability = 30;
-	}
-
-	__inline bool operator==(const Item& rhs) const {
-		return owner == rhs.owner &&
-			itemType == rhs.itemType &&
-			itemId == rhs.itemId &&
-			refineLevel == rhs.refineLevel &&
-			durability == rhs.durability &&
-			lifespan == rhs.lifespan;
-	}
-	bool operator!=(const Item& rhs) {
-		return !(operator==(rhs));
-	}
-
-	__inline unsigned long toUniqueId() const {
-		return (this->itemType * 10000) + this->itemId;
-	}
-};
 
 struct Character {
 	DWORD id;
@@ -111,7 +74,9 @@ class CharClient : public ROSESocketClient {
 			}
 
 		} selectedCharacter;
-		FixedArray<Character> characters;
+
+		byte_t charAmount;
+		Character* characters;
 
 		bool pakIdentifyAccount();
 		bool pakGetCharacters();
@@ -120,9 +85,13 @@ class CharClient : public ROSESocketClient {
 		bool pakDeleteCharacter();
 		bool pakGetWorldserverIp();
 		bool pakUnknown();
+
+		__inline byte_t getCharacterAmount() const {
+			return this->charAmount;
+		}
 	public:
 		CharClient(NetworkInterface* iFace, const CryptInfo& cryptInfo) : ROSESocketClient(iFace, cryptInfo) {
-			this->characters.reserve(5);
+			this->characters = new Character[5];
 		}
 		~CharClient();
 

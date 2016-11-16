@@ -98,13 +98,18 @@ class String {
 			return static_cast<unsigned int>(this->content.length());
 		}
 
+		__inline bool contains(const std::string other) const {
+			return this->contains(other.c_str());
+		}
+
 		__inline bool contains(const char *buf) const {
 			return this->contains(std::string(buf));
 		}
 
-		__inline bool contains(const std::string other) const {
-			return ((int)this->content.find(other.c_str()) >= 0);
+		__inline bool contains(const String& other) const {
+			return ((int)this->content.find(other.toConstChar()) >= 0);
 		}
+
 
 		__inline bool contentEquals(const char *arr) const {
 			return this->contentEquals(String(arr));
@@ -178,7 +183,7 @@ class String {
 			for(size_t i=0, j=0;i<this->content.length() && j<len;i++, j++) {
 				const char cont = this->content[this->content.length()-i-1];
 				const char c = cmp[len-j-1];
-				if(cont != c) {
+				if(toupper(cont) != toupper(c)) {
 					return false;
 				}
 			}
@@ -230,6 +235,8 @@ class String {
 		}
 
 		String* split(const char *splitToken, unsigned long *splitAmount) const;
+
+		String toUpper() const;
 
 		__inline const char *toConstChar() const {
 			return this->content.c_str();

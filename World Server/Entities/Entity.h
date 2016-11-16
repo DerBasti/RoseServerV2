@@ -41,29 +41,6 @@ public:
 	}
 };
 
-class Position {
-private:
-	float x;
-	float y;
-	StoppableClock lastCheckTime;
-public:
-	Position() : Position(0.0f, 0.0f) {}
-	Position(const float x, const float y) {
-		this->x = x;
-		this->y = y;
-		this->lastCheckTime.start();
-	}
-	virtual ~Position() {}
-	Position& operator=(const Position& pos) = default;
-
-	__inline float getX() const {
-		return this->x;
-	}
-	__inline float getY() const {
-		return this->y;
-	}
-};
-
 class PositionInformation {
 private:
 	Position current;
@@ -84,6 +61,13 @@ public:
 	}
 	__inline void setMap(Map* map) {
 		this->map = map;
+	}
+
+	__inline Map::Sector* getSector() const {
+		return this->currentSector;
+	}
+	__inline void setSector(Map::Sector* sector) {
+		this->currentSector = sector;
 	}
 
 	__inline Position getCurrent() const {
@@ -148,13 +132,12 @@ protected:
 	dword_t movementSpeed;
 	word_t stamina;
 
+	word_t attackPower;
+	word_t physicalDefense;
+	word_t magicalDefense;
+	float range;
+
 	Observable<Stance> stance;
-	__inline void setMaxHP(const unsigned long newMax) {
-		this->maxHp = newMax;
-	}
-	__inline void setMaxMP(const unsigned long newMax) {
-		this->maxMp = newMax;
-	}
 public:
 	Stats() {
 		stance.setOnNewValueAssigned([&](Stance stance) {
@@ -168,6 +151,8 @@ public:
 		this->currentHp = this->maxHp = 100;
 		this->currentMp = this->maxMp = 100;
 		this->stamina = 5000;
+		this->attackPower = this->physicalDefense = this->magicalDefense = 50;
+		this->range = 100.0f;
 	}
 	virtual ~Stats() {}
 
@@ -181,6 +166,12 @@ public:
 		return this->maxHp;
 	}
 
+	__inline void setMaxHP(const unsigned long newMax) {
+		this->maxHp = newMax;
+	}
+	__inline void setMaxMP(const unsigned long newMax) {
+		this->maxMp = newMax;
+	}
 	__inline unsigned long getMP() const {
 		return this->currentMp;
 	}
@@ -193,6 +184,18 @@ public:
 	__inline word_t getStamina() const {
 		return this->stamina;
 	}
+	__inline word_t getAttackPower() const {
+		return this->attackPower;
+	}
+	__inline void setAttackPower(const word_t atk) {
+		this->attackPower = atk;
+	}
+	__inline float getAttackRange() const {
+		return this->range;
+	}
+	__inline void setAttackRange(const float range) {
+		this->range = range;
+	}
 };
 
 class Entity {
@@ -200,6 +203,8 @@ private:
 	EntityInfo basicIngameInformation;
 	PositionInformation positions;
 	Stats stats;
+protected:
+	void movementProc();
 public:
 	Entity() {	}
 	virtual ~Entity() {}
@@ -213,6 +218,14 @@ public:
 	__inline Stats* getStats() {
 		return &this->stats;
 	}
+
+	virtual void doAction() {
+		this->movementProc();
+	}
+
+	virtual bool isPlayer() const { return false; }
+	virtual bool isNPC() const { return false; }
+	virtual bool isMonster() const { return false; }
 };
 
 #endif

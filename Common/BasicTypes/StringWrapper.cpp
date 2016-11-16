@@ -62,3 +62,11 @@ String String::removeEx(const char token) {
 	cpy.remove(token);
 	return cpy;
 }
+
+String String::toUpper() const {
+	String resultStr = String();
+	for (unsigned int i = 0; i < this->content.length(); i++) {
+		resultStr += toupper(this->content[i]);
+	}
+	return resultStr;
+}

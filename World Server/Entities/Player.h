@@ -260,6 +260,7 @@ private:
 	word_t jobId;
 	word_t statPoints;
 	word_t skillPoints;
+	word_t saveTownId;
 
 	PlayerAppearance appearance;
 	Attributes attributes;
@@ -311,6 +312,12 @@ public:
 	__inline void setSkillPoints(const word_t points) {
 		this->skillPoints = points;
 	}
+	__inline void setSaveTown(const word_t id) {
+		this->saveTownId = id;
+	}
+	__inline word_t getSaveTown() const {
+		return this->saveTownId;
+	}
 
 	__inline Inventory* getInventory() {
 		return &this->inventory;
@@ -341,6 +348,7 @@ private:
 	bool sendPlayerInformation();
 	bool sendQuestData();
 	bool sendInventory();
+	bool sendWeightPercentage();
 
 	bool pakAssignId();
 	bool pakIdentify();
@@ -357,6 +365,8 @@ public:
 	__inline Character* getCharacter() {
 		return &this->character;
 	}
+
+	__inline bool isPlayer() const { return true; }
 };
 
 #endif

@@ -1,5 +1,6 @@
 #include "Player.h"
 #include "..\..\Common\PacketIDs.h"
+#include "..\WorldServer.h"
 
 FunctionBinder<Player, unsigned long, bool(Player::*)()> Player::PACKET_FUNCTIONS = {
 	{ PacketID::World::Request::GET_ID, &Player::pakAssignId },
@@ -20,7 +21,9 @@ bool Player::loadEntireCharacter() {
 }
 
 bool Player::loadCharacterInformation() {
-	Statement lastChar(DBQueries::Select::LAST_CHAR_AND_ACCESSLEVEL);
+	auto server = ROSEServer::getServer<WorldServer>();
+	auto db = server->getDB();
+	Statement lastChar(db, DBQueries::Select::LAST_CHAR_AND_ACCESSLEVEL);
 	lastChar.setUInt(this->getAccountInfo()->getId());
 	auto lastCharResult = lastChar.executeWithResult();
 	if (!lastCharResult->hasResult()) {
@@ -30,7 +33,7 @@ bool Player::loadCharacterInformation() {
 	this->getCharacter()->setId(lastCharResultRow.get(0x00).toInt());
 	this->getAccountInfo()->setAccessLevel(lastCharResultRow.get(0x01).toInt());
 
-	Statement charInfos(DBQueries::Select::CHARACTER_BASIC_INFORMATION);
+	Statement charInfos(db, DBQueries::Select::CHARACTER_BASIC_INFORMATION);
 	charInfos.setUInt(this->getCharacter()->getId());
 	auto charInfoResult = charInfos.executeWithResult();
 	if (!charInfoResult->hasResult()) {
@@ -48,17 +51,17 @@ bool Player::loadCharacterInformation() {
 	Item& moneySlot = this->getCharacter()->getInventory()->get(0x00);
 	moneySlot = Item(ItemType::MONEY, 0x00);
 	moneySlot.setAmount(charInfoRow.get(0x07).toInt());
-
-	const word_t mapId = charInfoRow.get(0x09).toShort();
-	this->getPositionInformation()->setMap(nullptr); //TODO
-	this->getPositionInformation()->setCurrent(Position(5200, 5200));
+	this->getCharacter()->setSaveTown(charInfoRow.get(0x08).toShort());
+	const byte_t mapId = charInfoRow.get(0x09).toByte();
+	this->getPositionInformation()->setMap(server->getMap(mapId)); //TODO
+	this->getPositionInformation()->setCurrent(Position(520000, 520000));
 	this->getPositionInformation()->setDestination(this->getPositionInformation()->getCurrent());
 
 	return true;
 }
 
 bool Player::loadCharacterStats() {
-	Statement stm(DBQueries::Select::CHARACTER_STATS);
+	Statement stm(ROSEServer::getDatabase(), DBQueries::Select::CHARACTER_STATS);
 	stm.setUInt(this->getCharacter()->getId());
 	auto result = stm.executeWithResult();
 	if (!result->hasResult()) {
@@ -66,20 +69,20 @@ bool Player::loadCharacterStats() {
 	}
 	auto row = result->getFirst();
 	Attributes *attributes = this->getCharacter()->getAttributes();
-	attributes->setStrength(row.get(0x00).toShort());
-	attributes->setDexterity(row.get(0x01).toShort());
-	attributes->setIntelligence(row.get(0x02).toShort());
-	attributes->setConcentration(row.get(0x03).toShort());
-	attributes->setCharm(row.get(0x04).toShort());
-	attributes->setSensibility(row.get(0x05).toShort());
-	this->getCharacter()->setStatPoints(row.get(0x06).toShort());
-	this->getCharacter()->setSkillPoints(row.get(0x07).toShort());
+	attributes->setStrength(row.get(0x01).toShort());
+	attributes->setDexterity(row.get(0x02).toShort());
+	attributes->setIntelligence(row.get(0x03).toShort());
+	attributes->setConcentration(row.get(0x04).toShort());
+	attributes->setCharm(row.get(0x05).toShort());
+	attributes->setSensibility(row.get(0x06).toShort());
+	this->getCharacter()->setStatPoints(row.get(0x07).toShort());
+	this->getCharacter()->setSkillPoints(row.get(0x08).toShort());
 
 	return true;
 }
 
 bool Player::loadCharacterInventory() {
-	Statement stm(DBQueries::Select::CHARACTER_INVENTORY);
+	Statement stm(ROSEServer::getDatabase(), DBQueries::Select::CHARACTER_INVENTORY);
 	stm.setUInt(this->getCharacter()->getId());
 	auto result = stm.executeWithResult();
 	if (!result->hasResult()) {
@@ -87,12 +90,12 @@ bool Player::loadCharacterInventory() {
 	}
 	for (unsigned long i = 0; i < result->getResultAmount(); i++) {
 		auto row = result->getRow(i);
-		byte_t slotId = row.get(0x00).toByte();
+		byte_t slotId = row.get(0x01).toByte();
 		Item& item = this->getCharacter()->getInventory()->get(slotId);
-		item = Item(row.get(0x01).toInt() / 10000, row.get(0x01).toInt() % 10000);
-		item.setDurability(row.get(0x02).toByte());
-		item.setLifeSpan(row.get(0x03).toShort());
-		item.setAmount(row.get(0x04).toInt());
+		item = Item(row.get(0x02).toInt() / 10000, row.get(0x02).toInt() % 10000);
+		item.setDurability(row.get(0x03).toByte());
+		item.setLifeSpan(row.get(0x04).toShort());
+		item.setAmount(row.get(0x05).toInt());
 		//Refine?
 	}
 	return true;
@@ -124,7 +127,7 @@ bool Player::sendPlayerInformation() {
 	pak.addWord(this->getPositionInformation()->getMap()->getId());
 	pak.addFloat(this->getPositionInformation()->getCurrent().getX());
 	pak.addFloat(this->getPositionInformation()->getCurrent().getY());
-	pak.addWord(0x00); //SAVED POSITION
+	pak.addWord(this->getCharacter()->getSaveTown()); //SAVED POSITION
 	pak.addDWord(this->getCharacter()->getAppearance()->getFaceStyle());
 	pak.addDWord(this->getCharacter()->getAppearance()->getHairStyle());
 
@@ -139,7 +142,7 @@ bool Player::sendPlayerInformation() {
 
 	pak.addByte(0x00); //BIRTHSTONE
 	pak.addWord(0x00); //BIRTHPLACE?
-	pak.addWord(0x00); //JOB
+	pak.addWord(this->getCharacter()->getJobId()); //JOB
 	pak.addByte(0x00); //UNION
 	pak.addByte(0x00); //RANK
 	pak.addByte(0x00); //FAME
@@ -244,7 +247,39 @@ bool Player::sendQuestData() {
 }
 
 bool Player::pakAssignId() {
-	return true;
+	Packet pak(PacketID::World::Response::ASSIGN_ID);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addWord(this->getStats()->getHP());
+	pak.addWord(this->getStats()->getMP());
+	pak.addDWord(this->getCharacter()->getExperience());
+	pak.addDWord(0x00); //UNUSED
+
+	pak.addWord(0x64);
+	pak.addDWord(0x0C1F4B79);
+	pak.addWord(0x64);
+	pak.addDWord(0x3232cd50);
+	pak.addDWord(0x32323235);
+	pak.addDWord(0x35323232);
+
+	//PVP-MAP (0 = false, 1 = true)
+	pak.addDWord(0x00);
+
+	//MAP TIME
+	pak.addDWord(0x00);
+
+	//White icon (friendly)
+	pak.addDWord(0x00);
+
+	this->getBasicInformation()->setIngameFlag(true);
+
+	return this->sendPacket(pak) && this->sendWeightPercentage();
+}
+
+bool Player::sendWeightPercentage() {
+	Packet pak (PacketID::World::Response::WEIGHT);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addByte(0x00); //WEIGHT PERCENT
+	return this->sendPacket(pak);
 }
 
 bool Player::pakIdentify() {
@@ -253,7 +288,7 @@ bool Player::pakIdentify() {
 		return false;
 	}
 
-	return this->sendPlayerInformation() && this->sendInventory() && this->sendGamingPlan();
+	return this->sendPlayerInformation() && this->sendInventory() && this->sendQuestData() && this->sendGamingPlan();
 }
 
 bool Player::pakTeleport() {

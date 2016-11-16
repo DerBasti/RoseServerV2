@@ -9,6 +9,9 @@ CharClient::~CharClient() {
 
 	this->selectedCharacter.id = 0x00;
 	this->selectedCharacter.name = "";
+
+	delete[] this->characters;
+	this->characters = nullptr;
 }
 
 bool CharClient::pakIdentifyAccount() {
@@ -34,6 +37,9 @@ bool CharClient::pakIdentifyAccount() {
 
 void CharClient::getCharactersFromResult(ResultSet* rs) {
 	auto rows = rs->getResultRows();
+	this->charAmount = static_cast<byte_t>(rs->getResultAmount());
+
+	byte_t currentChar = 0x00;
 	std::for_each(rows.begin(), rows.end(), [&](ResultRow& row) {
 		Character newChar;
 		newChar.id = row[0].toInt();
@@ -44,7 +50,8 @@ void CharClient::getCharactersFromResult(ResultSet* rs) {
 		newChar.hairStyle = row[7].toInt();
 		newChar.sex = row[8].toInt();
 		newChar.deleteTime = 0;
-		this->characters.addValue(newChar);
+		this->characters[currentChar] = newChar;
+		currentChar++;
 	});
 }
 
@@ -61,8 +68,8 @@ bool CharClient::pakGetCharacters() {
 	pak.addByte(static_cast<BYTE>(result->getResultAmount()));
 	this->getCharactersFromResult(result.get());
 
-	for (unsigned int i = 0; i < this->characters.size(); i++) {
-		Character& newChar = this->characters.getValue(i);
+	for (unsigned int i = 0; i < this->getCharacterAmount(); i++) {
+		Character& newChar = this->characters[i];
 		Statement getEquipmentStatement(ROSEServer::getDatabase(), DBQueries::Select::CHARSELECT_EQUIPMENT);
 		getEquipmentStatement.setUInt(newChar.id);
 		auto equipRes = getEquipmentStatement.executeWithResult();
@@ -73,11 +80,10 @@ bool CharClient::pakGetCharacters() {
 		DWORD itemCnt = resultSet.getSize();
 		std::for_each(resultSet.begin(), resultSet.end(), [&](ResultRow& row) {
 			Item& curItem = newChar.equipment[row.get(0).toInt()];
-			curItem.itemId = row.get(1).toInt() % 10000;
-			curItem.refineLevel = row.get(2).toInt();
+			curItem = Item(row.get(1).toInt() / 10000, row.get(1).toInt() % 10000, 1);
+			curItem.setRefineLevel(row.get(2).toInt());
 		});
 		pak.addString(newChar.name.toConstChar());
-		pak.addByte(0x00);
 		pak.addByte(newChar.sex);
 		pak.addWord(newChar.level);
 		pak.addWord(newChar.classId);
@@ -85,7 +91,7 @@ bool CharClient::pakGetCharacters() {
 		pak.addByte(0x00); //Platinum ?
 		pak.addDWord(newChar.faceStyle);
 		pak.addDWord(newChar.hairStyle);
-#define ITEM_SENDING(slot) pak.addWord(newChar.equipment[slot].itemId); pak.addWord(newChar.equipment[slot].refineLevel);
+#define ITEM_SENDING(slot) pak.addWord(newChar.equipment[slot].getId()); pak.addWord(newChar.equipment[slot].getRefineLevel());
 
 		ITEM_SENDING(2);
 		ITEM_SENDING(3);
@@ -101,7 +107,7 @@ bool CharClient::pakGetCharacters() {
 
 bool CharClient::pakCreateCharacter() {
 	Packet pak(PacketID::Character::Response::CREATE_CHARACTER);
-	if (this->characters.size() == 5) { //MAX CHARS REACHED
+	if (this->getCharacterAmount() == 5) { //MAX CHARS REACHED
 		pak.addWord(0x04);
 		return this->sendPacket(pak);
 	}
@@ -110,7 +116,7 @@ bool CharClient::pakCreateCharacter() {
 	newChar.classId = 0x00;
 	newChar.deleteTime = 0x00;
 	newChar.faceStyle = this->getPacket().getByte(0x03);
-	newChar.id = this->characters.size() + 1;
+	newChar.id = this->charAmount+1;
 	newChar.hairStyle = this->getPacket().getByte(0x02);
 	newChar.level = 1;
 	newChar.name = this->getPacket().getString(0x07);
@@ -120,7 +126,8 @@ bool CharClient::pakCreateCharacter() {
 	if (!server->addCharacter(this->accountInfo.id, newChar)) {
 		return false;
 	}
-	this->characters.addValue(newChar);
+	this->characters[this->getCharacterAmount()] = newChar;
+	this->charAmount++;
 	pak.addWord(0x00);
 	return this->sendPacket(pak);
 }
@@ -139,9 +146,9 @@ bool CharClient::pakGetWorldserverIp() {
 	this->selectedCharacter.name = std::string(data);
 
 	DWORD charId = 0x00;
-	for (unsigned int i = 0; i < this->characters.size(); i++) {
-		if (this->characters.getValue(i).name.contentEquals(this->selectedCharacter.name)) {
-			charId = this->characters.getValue(i).id;
+	for (unsigned int i = 0; i < this->getCharacterAmount(); i++) {
+		if (this->characters[i].name.contentEquals(this->selectedCharacter.name)) {
+			charId = this->characters[i].id;
 		}
 	}
 
@@ -149,11 +156,10 @@ bool CharClient::pakGetWorldserverIp() {
 	server->updateLastPlayedChar(this->accountInfo.id, charId);
 
 	Packet pak(PacketID::Character::Response::GET_WORLDSERVER_IP);
-	pak.addWord(29200); //PORT
+	pak.addWord(server->getConfig().get("WorldPort").toInt()); //PORT
 	pak.addDWord(this->accountInfo.id);
 	pak.addDWord(CharServer::DEFAULT_ENCRYPTION_KEY);
-	pak.addString("127.0.0.1"); //IP
-	pak.addByte(0x00);
+	pak.addString(server->getConfig().get("WorldIp")); //IP
 	if (!this->sendPacket(pak))
 		return false;
 

@@ -1,6 +1,6 @@
 #include "CharServer.h"
-#include "D:\Programmieren\BasicObject\File.h"
-#include "D:\Programmieren\BasicObject\Config.h"
+#include "..\Common\BasicTypes\File.h"
+#include "..\Common\BasicTypes\Config.h"
 
 int main() {
 	MYSQL mysql;

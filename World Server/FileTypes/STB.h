@@ -33,10 +33,12 @@ class STB {
 		std::vector<STB::Entry> entries;
 		String filePath;
 	public:
+		typedef std::vector<STB::Entry>::iterator iterator;
+
 		STB(const String& pathInVFS, const SharedArrayPtr<char> data) : STB(pathInVFS, data, true) {}
 		STB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) {
 			this->filePath = pathInVFS;
-			BufferedFileReader bfr(data.get(), data.getSize());
+			BufferedFileReader bfr(data.get(), data.getSize(), false);
 			bfr.setCaret(0x04);
 
 			unsigned long offset = bfr.readDWord();
@@ -59,6 +61,15 @@ class STB {
 				}
 			}
 		}
+
+		iterator begin() {
+			return this->entries.begin();
+		}
+
+		iterator end() {
+			return this->entries.end();
+		}
+
 		__inline const Entry getEntry(const unsigned int id) const {
 			return this->entries.at(id);
 		}

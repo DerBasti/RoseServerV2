@@ -28,9 +28,6 @@ protected:
 	__inline CryptInfo& getCryptInfo() {
 		return crypt;
 	}
-	__inline Config& getConfig() {
-		return this->config;
-	}
 public:
 	static const unsigned int DEFAULT_ENCRYPTION_KEY = 0x87654321;
 	ROSEServer(const char* IP, unsigned short port, MYSQL* mysql) : ROSEServer(String(IP), port, mysql) {}
@@ -46,6 +43,9 @@ public:
 		delete this->database;
 		this->database = nullptr;
 		server = nullptr;
+	}
+	__inline Config& getConfig() {
+		return this->config;
 	}
 	virtual NetworkClient* onClientConnected(NetworkInterface *iFace) {
 		return nullptr;

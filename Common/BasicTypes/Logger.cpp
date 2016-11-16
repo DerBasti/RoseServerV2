@@ -43,7 +43,8 @@ void Logger::internalLog(const Described<LogLevel*>& levelToCheckFor, const Stri
 	if (lvlCheck >= currentLvl || lvlCheck >= *(LogLevel::GLOBAL_OVERRIDE.getValue())) {
 		String output = String(" [") + levelToCheckFor.getDescription() + String("] ") + this->getClassLogName() 
 			+ String(" - ") + String(msg);
-		std::cout << TimeUnits::GetCurrentDayTimeWithMillis() << output << "\n";
+		String time = TimeUnits::GetCurrentDayTimeWithMillis();
+		std::cout << time << output << "\n";
 
 		if (this->outLog) {
 			outLog->reopen();

@@ -8,6 +8,7 @@
 #include "..\Common\ROSESocketServer.h"
 #include "FileTypes\STB.h"
 #include "FileTypes\VFS.h"
+#include "Map.h"
 
 class WorldServer : public ROSEServer {
 	private:
@@ -31,13 +32,29 @@ class WorldServer : public ROSEServer {
 				ptr = std::shared_ptr<_T>(new _T(String(pathAsString), entry.getContent()));
 			}
 		}
+		std::vector<Map*> maps;
 	public:
 		WorldServer(const char* IP, unsigned short port, MYSQL* mysql) : WorldServer(String(IP), port, mysql) {}
 		WorldServer(const String& IP, unsigned short port, MYSQL* mysql);
 
 		NetworkClient* onClientConnected(NetworkInterface *iFace);
 
+
+		__inline void loadEncryption() {
+			GenerateCryptTables(this->getCryptInfo().table, ROSEServer::DEFAULT_ENCRYPTION_KEY);
+		}
+
+		__inline NPCSTB* getNPCSTB() const {
+			return this->npcFile.get();
+		}
+
+		__inline Map* getMap(const byte_t mapId) {
+			return this->maps[mapId];
+		}
+
 		virtual ~WorldServer();
+
+		void onRequestsFinished();
 };
 
 #endif 
