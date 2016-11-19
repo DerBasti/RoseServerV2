@@ -13,6 +13,7 @@ public:
 	class Entry {
 		private:
 			String name;
+			word_t unknownValue;
 			dword_t objectType;
 			dword_t objectId;
 			float direction;
@@ -29,6 +30,10 @@ public:
 
 			__inline Position getPosition() const {
 				return this->position;
+			}
+
+			__inline word_t getUnknownValue() const {
+				return this->unknownValue;
 			}
 
 			__inline float getDirection() const {
@@ -48,12 +53,12 @@ public:
 		class Round {
 		private:
 			String mobName;
-			dword_t mobId;
-			dword_t amount;
+			word_t mobId;
+			word_t amount;
 			bool tacticalFlag;
 		public:
 			Round() : Round(String(), 0, 0, false) {}
-			Round(const String& name, const dword_t id, const word_t count, bool tacticalFlag) {
+			Round(const String& name, const word_t id, const word_t count, bool tacticalFlag) {
 				this->mobName = name;
 				this->mobId = id;
 				this->amount = count;
@@ -66,10 +71,10 @@ public:
 			__inline String getName() const {
 				return this->mobName;
 			}
-			__inline dword_t getMobId() const {
+			__inline word_t getMobId() const {
 				return this->mobId;
 			}
-			__inline dword_t getAmount() const {
+			__inline word_t getAmount() const {
 				return this->amount;
 			}
 		};
@@ -83,8 +88,42 @@ public:
 	public:
 		Spawn(BufferedFileReader& bfr);
 		virtual ~Spawn();
+
+		__inline const Round& getRound(const dword_t roundId) const {
+			return this->allRounds[roundId];
+		}
+		__inline size_t getRoundAmount() const {
+			return this->allRounds.size();
+		}
+		__inline dword_t getMaxAmount() const {
+			return this->maxAmount;
+		}
+		__inline dword_t getRespawnInterval() const {
+			return this->respawnInterval;
+		}
+		__inline float getAllowedMaxDistance() const {
+			return this->allowedDistance;
+		}
+		__inline dword_t getTacticalPoints() const {
+			return this->tacticalPoints;
+		}
 	};
-	typedef Entry Telegate;
+
+	class TelegateSource : public Entry {
+	private:
+		dword_t id;
+	public:
+		TelegateSource(BufferedFileReader& bfr) : Entry(bfr) {}
+		virtual ~TelegateSource() {}
+
+		__inline dword_t getId() const {
+			return this->id;
+		}
+		__inline void setId(const dword_t newId) {
+			this->id = newId;
+		}
+	};
+
 	class NPC : public Entry{
 	private:
 		String conFile;
@@ -92,8 +131,8 @@ public:
 		NPC(BufferedFileReader& bfr);
 		virtual ~NPC();
 
-		__inline dword_t getNpcId() const {
-			return this->getObjectId();
+		__inline word_t getNpcId() const {
+			return static_cast<word_t>(this->getObjectId());
 		}
 
 		__inline String getConFile() const {
@@ -103,8 +142,10 @@ public:
 private:
 	std::vector<IFO::Spawn> spawns;
 	std::vector<IFO::NPC> npcs;
-	std::vector<IFO::Telegate> telegates;
+	std::vector<IFO::TelegateSource> telegates;
 public:
+	const static unsigned long DEFAULT_SECTOR_SIZE = 16000;
+
 	IFO(const String& path, const SharedArrayPtr<char>& data);
 	virtual ~IFO();
 
@@ -114,7 +155,7 @@ public:
 	std::vector<IFO::NPC>& getNPCs() {
 		return this->npcs;
 	}
-	std::vector<IFO::Telegate> getTelegates() {
+	std::vector<IFO::TelegateSource>& getTelegateSources() {
 		return this->telegates;
 	}
 };
@@ -125,23 +166,31 @@ private:
 	typedef IFO::Spawn Spawn;
 	Spawn spawn;
 
+	byte_t mapId;
 	std::vector<class Monster*> spawnedMonsters;
 	time_t nextSpawnWave;
 	
 public:
-	MonsterSpawn(const IFO::Spawn& ifoSpawn) : spawn(ifoSpawn) {
-		this->nextSpawnWave = 0;
-	}
+	MonsterSpawn(const byte_t idOfMap, const IFO::Spawn& ifoSpawn);
 	virtual ~MonsterSpawn();
 
-	__inline void addMonster(const word_t typeId) {
-		this->addMonster(typeId, 1);
-	}
-	void addMonster(const word_t typeId, const word_t amount);
-	void removeMonster(class Monster* monRef);
+	bool checkSpawn();
 
+	__inline void addMonster(const word_t typeId, const Position& pos) {
+		this->addMonster(typeId, pos, 1);
+	}
+	void addMonster(const word_t typeId, const Position& pos, const word_t amount);
+	void removeMonster(class Monster* monRef);
+	
 	__inline dword_t getCurrentAmount() const {
 		return this->spawnedMonsters.size();
+	}
+
+	__inline byte_t getMapId() const {
+		return this->mapId;
+	}
+	__inline const IFO::Spawn& getSpawnData() const {
+		return this->spawn;
 	}
 };
 

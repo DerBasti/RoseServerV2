@@ -39,7 +39,7 @@ class BasicObject {
 			return result;
 	#else
 			std::string fullName = typeid(*obj).name();
-			return String(fullName.substr(fullName.find(" ")+1));
+			return String(fullName.substr(fullName.find(" ")+1).c_str());
 	#endif
 		}
 	public:
@@ -106,18 +106,18 @@ class Toggleable : public BasicObject {
 		}
 };
 
-template<class _T> class Autoclose : public BasicObject {
+template<class _T = void*> class Autoclose : public BasicObject {
 private:
 	std::function<void()> closer;
 	_T handle;
 protected:
-	Autoclose() {
-		this->closer = []() {};
-	}
 	__inline void setHandle(_T newHandle) {
 		this->handle = newHandle;
 	}
 public:
+	Autoclose() {
+		this->closer = []() {};
+	}
 	Autoclose(_T handle) : Autoclose() {
 		this->handle = handle;
 	}

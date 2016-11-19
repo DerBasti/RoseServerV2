@@ -9,7 +9,7 @@
 #include "..\..\Common\datatypes.h"
 
 class ZON {
-private:
+public:
 	class EventInformation {
 		private:
 			byte_t id;
@@ -33,7 +33,6 @@ private:
 
 			bool isValid() const;
 	};
-
 	class Center {
 		private:
 			Position center;
@@ -62,24 +61,38 @@ private:
 			}
 	};
 
+private:
 	void loadEconomyInfos(BufferedFileReader& bfr);
 	void loadEventInfos(BufferedFileReader& bfr);
 	void loadZoneInfos(BufferedFileReader& bfr);
 
 	Center mapCenter;
-	std::vector<EventInformation> events;
+	std::vector<EventInformation*> events;
+
+	dword_t sectorSize;
 
 	String path;
-
-	__inline EventInformation getEvent(const char* name) const {
-		return this->getEvent(String(name));
-	}
-	EventInformation getEvent(const String& name) const;
 public:
 	ZON(const char* pathInVFS, const SharedArrayPtr<char>& data) : ZON(String(pathInVFS), data) {}
 	ZON(const String& pathInVFS, const SharedArrayPtr<char>& data);
 
+	__inline const EventInformation* getEvent(const char* name) const {
+		return this->getEvent(String(name));
+	}
+	const EventInformation* getEvent(const String& name) const;
+
 	virtual ~ZON();
+
+	__inline dword_t getSectorSize() const {
+		return this->sectorSize;
+	}
+
+	__inline void setSectorSize(const dword_t size) {
+		this->sectorSize = size;
+	}
+	__inline const Center& getMapCenterData() const {
+		return this->mapCenter;
+	}
 };
 
 #endif

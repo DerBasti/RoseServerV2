@@ -15,6 +15,52 @@
 
 #include "Definitions.h"
 
+class Position {
+private:
+	float x;
+	float y;
+public:
+	Position() : Position(0.0f, 0.0f) {}
+	Position(const float x, const float y) {
+		this->x = x;
+		this->y = y;
+	}
+	virtual ~Position() {}
+
+	Position& operator=(const Position& pos) = default;
+
+	Position operator+(const Position& pos) const {
+		return Position(this->getX() + pos.getX(), this->getY() + pos.getY());
+	}
+	Position operator-(const Position& pos) const {
+		return Position(this->getX() - pos.getX(), this->getY() - pos.getY());
+	}
+
+	__inline float distanceTo(const Position& pos) const {
+		return ((*this) - pos).toLength();
+	}
+
+	float toLength() const {
+		float x2 = (this->getX() * this->getX());
+		float y2 = (this->getY() * this->getY());
+		return ::sqrtf(x2 + y2);
+	}
+
+	__inline bool operator==(const Position& pos) const {
+		return this->getX() == pos.getX() && this->getY() == pos.getY();
+	}
+	__inline bool operator!=(const Position& pos) const {
+		return !(this->operator==(pos));
+	}
+
+	__inline float getX() const {
+		return this->x;
+	}
+	__inline float getY() const {
+		return this->y;
+	}
+};
+
 class Packet {
 public:
 	const static dword_t DEFAULT_DATA_MAX = 0x400;
@@ -142,6 +188,10 @@ public:
 			this->addByte(toAdd[i]);
 		}
 		this->addByte(0x00); //Termination of string
+	}
+	void addPosition(const Position& pos) {
+		this->addFloat(pos.getX());
+		this->addFloat(pos.getY());
 	}
 
 	char* getString(word_t position) { return &this->data[position]; }
@@ -309,29 +359,6 @@ public:
 		}
 	}
 
-};
-
-class Position {
-private:
-	float x;
-	float y;
-	StoppableClock lastCheckTime;
-public:
-	Position() : Position(0.0f, 0.0f) {}
-	Position(const float x, const float y) {
-		this->x = x;
-		this->y = y;
-		this->lastCheckTime.start();
-	}
-	virtual ~Position() {}
-	Position& operator=(const Position& pos) = default;
-
-	__inline float getX() const {
-		return this->x;
-	}
-	__inline float getY() const {
-		return this->y;
-	}
 };
 
 #endif //__COMMON_DATATYPES__

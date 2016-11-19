@@ -141,12 +141,12 @@ class File : public BasicObject {
 
 		static String GetProcessFileName() {
 			String result = GetProcessFileNameWithPath();
-			return result.substring(result.lastPositionOf("\\")+1);
+			return result.substring(result.findLastOf("\\")+1);
 		}
 
 		static String GetWorkingDirectory() {
 			String result = GetProcessFileNameWithPath();
-			return result.substring(0, result.lastPositionOf("\\") + 1);
+			return result.substring(0, result.findLastOf("\\") + 1);
 		}
 
 		__inline bool isFile() const {
@@ -184,7 +184,7 @@ class File : public BasicObject {
 		}
 		bool subdirectoryExists(const String& folderName) const {
 			if (this->exists()) {
-				String currentFolder = this->path.substring(0, this->path.lastPositionOf("\\") + 1);
+				String currentFolder = this->path.substring(0, this->path.findLastOf("\\") + 1);
 				String totalPath = currentFolder + folderName;
 				File subdir(totalPath);
 				return subdir.exists() && subdir.isFolder();

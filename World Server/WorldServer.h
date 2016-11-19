@@ -24,6 +24,11 @@ class WorldServer : public ROSEServer {
 		std::shared_ptr<ZoneSTB> zoneFile;
 		std::shared_ptr<STB> motionFile;
 		std::shared_ptr<STB> dropFile;
+		std::shared_ptr<STB> warpFile;
+
+		std::vector<Map*> maps;
+		std::map<word_t, Telegate*> telegates;
+
 		template<class _T> void loadSTB(std::shared_ptr<_T>& ptr, const char *path, bool applySTL = true) {
 			this->logger.info(String("Loading STB: ") + String(path));
 			String pathAsString = String(path);	
@@ -32,7 +37,9 @@ class WorldServer : public ROSEServer {
 				ptr = std::shared_ptr<_T>(new _T(String(pathAsString), entry.getContent()));
 			}
 		}
-		std::vector<Map*> maps;
+
+		void loadZoneData();
+		void loadIFOs(Map *currentMap, std::vector<VFS::Entry>& ifoFiles);
 	public:
 		WorldServer(const char* IP, unsigned short port, MYSQL* mysql) : WorldServer(String(IP), port, mysql) {}
 		WorldServer(const String& IP, unsigned short port, MYSQL* mysql);
@@ -49,12 +56,17 @@ class WorldServer : public ROSEServer {
 		}
 
 		__inline Map* getMap(const byte_t mapId) {
-			return this->maps[mapId];
+			return (this->maps.size() > mapId ? this->maps[mapId] : nullptr);
+		}
+
+		__inline Telegate* getTelegate(const word_t id) {
+			return (this->telegates.count(id) > 0 ? this->telegates[id] : nullptr);
 		}
 
 		virtual ~WorldServer();
 
 		void onRequestsFinished();
+		void onClientDisconnect(NetworkInterface* iFace);
 };
 
 #endif 

@@ -24,7 +24,7 @@ std::shared_ptr<ResultSet> Statement::executeWithResult() {
 
 
 bool Statement::execute() {
-	if (mysql_real_query(this->getDb()->getSqlHandle(), this->toString().toConstChar(), this->toString().length()) != 0) {
+	if (mysql_real_query(this->getDb()->getSqlHandle(), this->toString().toConstChar(), this->toString().getLength()) != 0) {
 		if (this->getDb()->reconnect()) {
 			return this->execute();
 		}

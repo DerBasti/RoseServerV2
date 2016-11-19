@@ -18,6 +18,7 @@ class EntityInfo {
 private:
 	word_t localId;
 	bool ingameFlag;
+	Map::Sector* sector;
 public:
 	EntityInfo() : EntityInfo(0) {}
 	EntityInfo(const word_t localId) {
@@ -39,18 +40,24 @@ public:
 	__inline bool isIngame() const {
 		return this->ingameFlag;
 	}
+	__inline Map::Sector* getSector() const {
+		return this->sector;
+	}
+	__inline void setSector(Map::Sector* sector) {
+		this->sector = sector;
+	}
 };
 
 class PositionInformation {
 private:
 	Position current;
 	Position dest;
+	StoppableClock lastCheckTime;
 	Map* map;
-	Map::Sector* currentSector;
 public:
 	PositionInformation() {
 		map = nullptr;
-		currentSector = nullptr;
+		this->lastCheckTime.start();
 	}
 	virtual ~PositionInformation() {}
 
@@ -63,11 +70,8 @@ public:
 		this->map = map;
 	}
 
-	__inline Map::Sector* getSector() const {
-		return this->currentSector;
-	}
-	__inline void setSector(Map::Sector* sector) {
-		this->currentSector = sector;
+	__inline unsigned long long updateDuration() {
+		return this->lastCheckTime.timeLap();
 	}
 
 	__inline Position getCurrent() const {
@@ -87,11 +91,11 @@ public:
 class Stance {
 private:
 	byte_t stanceId;
-	dword_t walkSpeed;
-	dword_t runSpeed;
+	word_t walkSpeed;
+	word_t runSpeed;
 public:
 	Stance() : Stance(0x00, 0x00, 0x00) {}
-	Stance(const byte_t stanceId, const dword_t walkSpeed, const dword_t runSpeed) {
+	Stance(const byte_t stanceId, const word_t walkSpeed, const word_t runSpeed) {
 		this->stanceId = stanceId;
 		this->walkSpeed = walkSpeed;
 		this->runSpeed = runSpeed;
@@ -101,16 +105,16 @@ public:
 	operator byte_t() const {
 		return this->stanceId;
 	}
-	__inline unsigned long getWalkSpeed() const {
+	__inline word_t getWalkSpeed() const {
 		return this->walkSpeed;
 	}
-	__inline void setWalkSpeed(const dword_t speed) {
+	__inline void setWalkSpeed(const word_t speed) {
 		this->walkSpeed = speed;
 	}
-	__inline unsigned long getRunSpeed() const {
+	__inline word_t getRunSpeed() const {
 		return this->runSpeed;
 	}
-	__inline void setRunSpeed(const dword_t speed) {
+	__inline void setRunSpeed(const word_t speed) {
 		this->runSpeed = speed;
 	}
 	__inline bool isWalking() const {
@@ -129,7 +133,7 @@ protected:
 	dword_t currentMp;
 	dword_t maxMp;
 
-	dword_t movementSpeed;
+	word_t movementSpeed;
 	word_t stamina;
 
 	word_t attackPower;
@@ -153,6 +157,7 @@ public:
 		this->stamina = 5000;
 		this->attackPower = this->physicalDefense = this->magicalDefense = 50;
 		this->range = 100.0f;
+		this->movementSpeed = 425;
 	}
 	virtual ~Stats() {}
 
@@ -196,6 +201,48 @@ public:
 	__inline void setAttackRange(const float range) {
 		this->range = range;
 	}
+	__inline word_t getMovementSpeed() const {
+		return this->movementSpeed;
+	}
+	__inline void setMovementSpeed(const word_t moveSpd) {
+		this->movementSpeed = moveSpd;
+	}
+};
+
+class Visuality {
+private:
+	std::map<word_t, Map::Sector*> visibleSectors;
+	std::function<void(Map::Sector*)> newSectorFunction;
+	std::function<void(Map::Sector*)> removeSectorFunction;
+
+	__inline std::function<void(Map::Sector*)> getEmptyFunction() {
+		return [](Map::Sector*){};
+	}
+public:
+	Visuality() {
+		this->setOnNewSector(nullptr);
+		this->setOnRemoveSector(nullptr);
+	}
+	virtual ~Visuality() {
+		std::for_each(this->visibleSectors.begin(), this->visibleSectors.end(), [&](std::pair<const word_t, Map::Sector*> sectorPair) {
+			this->removeSectorFunction(sectorPair.second);
+		});
+		this->visibleSectors.clear();
+	}
+	__inline void setOnNewSector(std::function<void(Map::Sector*)> func) {
+		this->newSectorFunction = (func == nullptr ? this->getEmptyFunction() : func);
+	}
+	__inline void setOnRemoveSector(std::function<void(Map::Sector*)> func) {
+		this->removeSectorFunction = (func == nullptr ? this->getEmptyFunction() : func);
+	}
+	void addSector(Map::Sector* sector) {
+		this->newSectorFunction(sector);
+	}
+	void removeSector(Map::Sector* sector) {
+		this->removeSectorFunction(sector);
+	}
+	void update(std::map<word_t, Map::Sector*> newVisibleSectors);
+	void forceClear();
 };
 
 class Entity {
@@ -203,11 +250,43 @@ private:
 	EntityInfo basicIngameInformation;
 	PositionInformation positions;
 	Stats stats;
+	Visuality visuality;
 protected:
 	void movementProc();
+	virtual bool sendEntityVisuallyAdded(Entity* entity) {
+		return true;
+	}
+	virtual bool sendPlayerVisuallyAdded(Entity* entity, Packet& pak) { return true; }
+	virtual bool sendNPCVisuallyAdded(Entity* entity, Packet& pak) { return true; }
+	virtual bool sendMonsterVisuallyAdded(Entity* entity, Packet& pak) { return true; }
+
+	virtual bool sendEntityVisuallyRemoved(Entity* entity) {
+		return true;
+	}
 public:
-	Entity() {	}
-	virtual ~Entity() {}
+	Entity() {
+		auto onNewSectorFunc = [&](Map::Sector* sector) {
+			std::for_each(sector->beginEntities(), sector->endEntities(), [&](std::pair<const word_t, Entity*> entityPair) {
+				Entity* other = entityPair.second;
+				if (other != this && other != nullptr) {
+					this->sendEntityVisuallyAdded(other);
+					other->sendEntityVisuallyAdded(this);
+				}
+			});
+		};
+		auto onRemoveSectorFunc = [&](Map::Sector* sector) {
+			std::for_each(sector->beginEntities(), sector->endEntities(), [&](std::pair<const word_t, Entity*> entityPair) {
+				Entity* other = entityPair.second;
+				if (other != this && other != nullptr) {
+					this->sendEntityVisuallyRemoved(other);
+					other->sendEntityVisuallyRemoved(this);
+				}
+			});
+		};
+		this->getVisuality()->setOnNewSector(onNewSectorFunc);
+		this->getVisuality()->setOnRemoveSector(onRemoveSectorFunc);
+	}
+	virtual ~Entity();
 
 	__inline PositionInformation* getPositionInformation() {
 		return &this->positions;
@@ -218,6 +297,9 @@ public:
 	__inline Stats* getStats() {
 		return &this->stats;
 	}
+	__inline Visuality* getVisuality() {
+		return &this->visuality;
+	}
 
 	virtual void doAction() {
 		this->movementProc();
@@ -226,6 +308,8 @@ public:
 	virtual bool isPlayer() const { return false; }
 	virtual bool isNPC() const { return false; }
 	virtual bool isMonster() const { return false; }
+
+	virtual void onDeath() {}
 };
 
 #endif

@@ -1,323 +1,519 @@
+#ifndef __STRING_WRAPPER__
+#define __STRING_WRAPPER__
+
 #ifdef _MSC_VER
 #pragma once
 #endif
 
-#ifndef __STRING_WRAPPER__
-#define __STRING_WRAPPER__
+#include <string.h>
+#include "QuickMakros.h"
 
-#include <string>
-#include <cstring>
-#include <vector>
-#include <time.h>
-#include <iostream>
+class SafeChar {
+private:
+	char *data;
+	char *endData;
+	__inline void safeAssign(char* newData) {
+		if (this->data) {
+			delete[] this->data;
+		}
+		this->data = newData;
+	}
+public:
+	SafeChar() {
+		data = nullptr;
+		endData = nullptr;
+	}
+	virtual ~SafeChar() {
+		if (data) {
+			delete[] data;
+		}
+		data = nullptr;
+	}
 
-#ifdef _MSC_VER
-#define SPRINTF sprintf_s
-#else
-#define SPRINTF sprintf
-#endif
+	FORWARD_ITERATOR_CREATOR(iterator, char);
+
+	__inline SafeChar& operator=(SafeChar&& other) {
+		this->safeAssign(other.data);
+		this->endData = other.endData;
+		other.data = other.endData = nullptr;
+		return (*this);
+	}
+
+	__inline SafeChar& operator=(std::nullptr_t) {
+		this->safeAssign(nullptr);
+		this->endData = nullptr;
+		return (*this);
+	}
+
+	__inline iterator begin() {
+		return iterator(this->data);
+	}
+
+	__inline iterator end() {
+		return iterator(this->endData);
+	}
+
+	__inline iterator beginConst() const {
+		return iterator(this->data);
+	}
+
+	__inline iterator endConst() const {
+		return iterator(this->endData);
+	}
+
+	__inline void set(char *newData, const size_t size) {
+		this->safeAssign(newData);
+		this->data[size] = 0x00;
+		this->endData = &newData[size];
+	}
+
+	operator char*() {
+		return this->data;
+	}
+
+	__inline char* get() const {
+		return this->data;
+	}
+
+	__inline const char* toConstChar() const {
+		return this->data;
+	}
+};
 
 class String {
-	private:
-		std::string content;
-	public:
-		String() {
-			this->content = std::string("");
-		}
-		String(const unsigned char c) {
-			char buf[0x02] = { (char)c, 0x00 };
-			this->content = std::string(buf);
-		}
-		explicit String(const char *buf) {
-			this->content = std::string(buf == nullptr ? "" : buf);
-		}
-		String(const std::string other) {
-			this->content = other;
-		}
-		String(const String& str) {
-			(*this) = str;
-		}
-		~String() {
-			this->content.clear();
-		}
+private:
+	SafeChar data;
+	unsigned long length;
 
-		__inline String& operator=(const char *buf) {
-			this->content = std::string(buf);
-			return (*this);
-		}
+protected:
+	void mergeData(const String& str) {
+		String copy(*this);
+		this->mergeData(copy.toConstChar(), copy.getLength(), str.toConstChar(), str.getLength());
+	}
+	void mergeData(const char* d) {
+		String copy(*this);
+		this->mergeData(copy.toConstChar(), copy.getLength(), d, (d == nullptr ? 0x00 : strlen(d)));
+	}
+	void mergeData(const char* d, const size_t len) {
+		String copy(*this);
+		this->mergeData(copy.toConstChar(), copy.getLength(), d, len);
+	}
+	void mergeData(const char* d1, const char *d2) {
+		size_t length[2] = { 0x00 };
+		length[0] = (d1 ? strlen(d1) : 0x00);
+		length[1] = (d2 ? strlen(d2) : 0x00);
+		this->mergeData(d1, length[0], d2, length[1]);
+	}
+	void mergeData(const char *d1, const size_t s1, const char *d2, const size_t s2) {
+		this->data.set(new char[s1 + s2 + 1], s1 + s2);
+		this->copyData(d1, s1);
+		this->copyData(d2, s2, s1);
 
-		__inline String& operator=(const String& s) {
-			this->content = std::string(s.content);
-			return (*this);
-		}
+		this->length = s1 + s2;
+	}
 
-		__inline bool operator<(const String& s) const {
-			return strcmp(this->content.c_str(), s.content.c_str()) < 0;
-		}
+	void assignData(const char* data, const size_t len) {
+		this->length = len;
+		this->data.set(new char[this->length + 1], this->length);
+		this->copyData(data, len);
+	}
 
-		__inline String& operator+=(const String& other) {
-			this->content = this->content.append(other.content);
-			return (*this);
-		}
-		__inline String& operator+=(const char *other) {
-			this->content = this->content.append(other);
-			return (*this);
-		}
-		__inline String& operator+=(const unsigned char& c) {
-			char buf[0x02] = {0x00};
-			SPRINTF(buf, "%c", c);
-			this->content += std::string(buf);
-			return (*this);
-		}
+	__inline void copyData(const char *data, const size_t len) {
+		this->copyData(data, len, 0);
+	}
 
-		__inline String operator+(const String& other) const {
-			return String(std::string(this->content).append(other.content));
+	__inline void copyData(const char *data, const size_t len, const size_t offset) {
+		memcpy(this->data + offset, data, len);
+		//std::copy(data, data + len, this->begin() + offset);
+	}
+
+	size_t getSafeSize(const char* token) const {
+		if (!token) {
+			return INVALID_LENGTH;
 		}
-
-		__inline String operator+(const char* other) const {
-			return String(std::string(this->content).append(other));
+		size_t len = strlen(token);
+		if (len > this->getLength()) {
+			len = INVALID_LENGTH;
 		}
+		return len;
+	}
+	template<class _ValueType>
+	static String internalFromConverter(const char* format, _ValueType value) {
+		char buf[0x80] = { 0x00 };
+		sprintf_s(buf, format, value);
+		return String(buf);
+	}
+public:
+	typedef SafeChar::iterator iterator;
+	const static size_t INVALID_LENGTH = -1;
+	String() { 
+		this->assignData(nullptr, 0);
+		this->length = 0;
+	}
 
-		__inline char operator[](unsigned int idx) const {
-			return (idx >= this->length()) ? '?' : this->content[idx];
+	String(const char* str) : String() {
+		this->assignData(str, str == nullptr ? 0x00 : strlen(str));
+	}
+
+	String(const String& other) {
+		this->assignData(other.data.toConstChar(), other.length);
+	}
+
+	String(String&& other) {
+		this->data = std::move(other.data);
+		this->length = std::move(other.length);
+	}
+
+	__inline bool operator<(const String& other) const {
+		return strcmp(this->data.toConstChar(), other.data.toConstChar()) < 0;
+	}
+
+	String& operator=(const String& other) {
+		this->assignData(other.data.get(), other.getLength());
+		return (*this);
+	}
+
+	String& operator=(String&& other) {
+		this->data = std::move(other.data);
+		this->length = std::move(other.length);
+		return (*this);
+	}
+
+	String operator+(const char* str) {
+		String result;
+		result.mergeData(this->data, str);
+		return result;
+	}
+
+	String operator+(const String& str) {
+		String result;
+		result.mergeData(this->data, str.data.get());
+		return result;
+	}
+
+	String& operator+=(unsigned char c) {
+		char asSigned = static_cast<char>(c);
+		this->mergeData(&asSigned, static_cast<size_t>(1));
+		return (*this);
+	}
+
+	String& operator+=(const char* str) {
+		this->mergeData(str);
+		return (*this);
+	}
+
+	String& operator+=(const String& str) {
+		this->mergeData(str);
+		return (*this);
+	}
+
+	__inline operator const char*() const {
+		return this->data.toConstChar();
+	}
+	__inline operator char*() {
+		return this->data;
+	}
+
+	__inline iterator begin(){
+		return this->data.begin();
+	}
+	__inline iterator end() {
+		return this->data.end();
+	}
+
+	__inline iterator beginConst() const {
+		return this->data.beginConst();
+	}
+	__inline iterator endConst() const {
+		return this->data.endConst();
+	}
+
+	__inline String substring(unsigned int start) const {
+		return this->substring(start, this->getLength() - start);
+	}
+
+	__inline String substring(unsigned int start, unsigned int length) const {
+		String result;
+		if (length > 0) {
+			result.assignData(this->toConstChar() + start, length);
 		}
+		return result;
+	}
 
-		__inline bool operator==(const String& other) const {
-			return this->contentEquals(other);
+	bool startsWith(const char* token) const {
+		size_t len = this->getSafeSize(token);
+		if (len == INVALID_LENGTH) {
+			return false;
 		}
-
-		__inline bool operator!=(const String& other) const {
-			return !(this->operator==(other));
-		}
-
-		__inline bool isEmpty() const {
-			return this->length() <= 0;
-		}
-
-		__inline unsigned int length() const {
-			return static_cast<unsigned int>(this->content.length());
-		}
-
-		__inline bool contains(const std::string other) const {
-			return this->contains(other.c_str());
-		}
-
-		__inline bool contains(const char *buf) const {
-			return this->contains(std::string(buf));
-		}
-
-		__inline bool contains(const String& other) const {
-			return ((int)this->content.find(other.toConstChar()) >= 0);
-		}
-
-
-		__inline bool contentEquals(const char *arr) const {
-			return this->contentEquals(String(arr));
-		}
-
-		bool contentEquals(const String& str) const {
-			if (str.length() != this->length()) {
+		const char* tmpData = this->toConstChar();
+		for (unsigned int i = 0; i < len; i++) {
+			if (*tmpData != *token) {
 				return false;
 			}
-			for (unsigned int i = 0; i < this->length(); i++) {
-				if (toupper(this->content[i]) != toupper(str.content[i])) {
-					return false;
-				}
-			}
-			return true;
+			tmpData++; token++;
 		}
+		return len > 0;
+	}
+	__inline bool startsWith(const String& other) const {
+		return this->startsWith(other.toConstChar());
+	}
 
-		void replace(const char tokenToFind, const char tokenToReplaceWith);
-		String replaceEx(const char tokenToFind, const char tokenToReplaceWith) {
-			String rep = (*this);
-			rep.replace(tokenToFind, tokenToReplaceWith);
-			return rep;
+	unsigned long findFirstOf(const char token) const {
+		return this->findFirstOf(token, 0);
+	}
+
+	unsigned long findFirstOf(const char token, const size_t offset) const {
+		char buf[0x02] = { token, 0x00 };
+		return this->findFirstOf(buf, offset);
+	}
+
+	unsigned long findFirstOf(const char* token) const {
+		return this->findFirstOf(token, 0);
+	}
+
+	unsigned long findFirstOf(const char* token, const size_t offset) const {
+		size_t len = this->getSafeSize(token);
+		if (len == INVALID_LENGTH || (len + offset) > this->getLength()) {
+			return INVALID_LENGTH;
 		}
-		void replaceOnce(const char tokenToFind, const char *tokenToReplaceWith) {
-			for (unsigned int i = 0; i < this->length(); i++) {
-				if (this->content[i] == tokenToFind) {
-					std::string newContent = std::string();
-					if (i > 0) {
-						newContent = this->content.substr(0, i);
-					}
-					newContent += std::string(tokenToReplaceWith);
-					if (i + 1 < this->length()) {
-						newContent += this->content.substr(i + 1);
-					}
-					this->content = newContent;
+		const char* thisData = this->toConstChar() + offset;
+		for (unsigned int i = offset; i < this->getLength(); i++) {
+			const char *otherToken = token;
+			bool found = true;
+			for (unsigned int j = 0; j < len && i < this->getLength(); i++, j++) {
+				if (*thisData != *otherToken) {
+					found = false;
 					break;
 				}
+				thisData++; otherToken++;
 			}
-		}
-		void replaceOnce(const char tokenToFind, const String &tokenToReplaceWith) {
-			this->replaceOnce(tokenToFind, tokenToReplaceWith.toConstChar());
-		}
-
-		void remove(const char token);
-		String removeEx(const char token);
-
-
-		__inline String substring(const unsigned int startPos) const {
-			return this->substring(startPos, 0);
-		}
-
-		__inline String substring(const unsigned int startPos, int length) const {
-			unsigned int totalPos = startPos + length;
-			if (static_cast<signed>(totalPos) < 0 || startPos >= this->length()) {
-				return String();
+			if (found) {
+				return i - len;
 			}
-			if (totalPos > this->length()) {
-				length = this->length() - startPos;
-			}
-			return this->content.substr(startPos, (length > 0 ? length : (this->length() - startPos)));
+			thisData++;
 		}
+		return INVALID_LENGTH;
+	}
 
-		__inline bool endsWith(const String& cmp) const {
-			return this->endsWith(cmp.toConstChar());
+	unsigned long findLastOf(const char* token) const {
+		size_t len = this->getSafeSize(token);
+		if (len == INVALID_LENGTH) {
+			return false;
 		}
-		bool endsWith(const char *cmp) const {
-			size_t len = strlen(cmp);
-			if(this->content.length() < len) {
+		const char* thisData = this->toConstChar() + this->getLength() - 1;
+		for (int i = this->getLength() - 1; i >= 0; i--) {
+			const char* tmpToken = token + len - 1;
+			bool found = true;
+			for (int j = len - 1; j >= 0 && i >= 0; j--, i--) {
+				char that = *thisData;
+				char other = *tmpToken;
+				if (*thisData != *tmpToken) {
+					found = false;
+					break;
+				}
+				thisData--; tmpToken--;
+			}
+			if (found) {
+				return i+1;
+			}
+			thisData--;
+		}
+		return INVALID_LENGTH;
+	}
+	unsigned long findLastOf(const char token, const size_t offset) const {
+		char buf[0x02] = { token, 0x00 };
+		return this->findLastOf(buf);
+	}
+
+	bool contains(const char* token) const {
+		return this->contains(token, false);
+	}
+
+	bool contains(const char* token, bool ignoreCaseSensitivity) const {
+		size_t len = this->getSafeSize(token);
+		if (len == INVALID_LENGTH) {
+			return false;
+		}
+		bool ranThrough = true;
+
+		const char *thisData = this->toConstChar();
+		for (unsigned int i = 0; i < this->getLength(); i++) {
+			ranThrough = true;
+			const char* tmpToken = token;
+			for (unsigned int j = 0; j < len && i < this->getLength(); i++, j++) {
+				char currentToken = (ignoreCaseSensitivity ? toupper(*tmpToken) : *tmpToken);
+				char currentChar = (ignoreCaseSensitivity ? toupper(*thisData) : *thisData);
+				if (currentChar != currentToken) {
+					ranThrough = false;
+					break;
+				}
+				thisData++; tmpToken++;
+			}
+			if (ranThrough) {
+				return true;
+			}
+			thisData++;
+		}
+		return false;
+	}
+
+	bool contentEquals(const char* str) const {
+		size_t len = this->getSafeSize(str);
+		if (len == INVALID_LENGTH || len != this->getLength()) {
+			return false;
+		}
+		const char *dataPtr = this->toConstChar();
+		for (unsigned int i = 0; i < len; i++) {
+			if (toupper(*dataPtr) != toupper(*str)) {
 				return false;
 			}
-			for(size_t i=0, j=0;i<this->content.length() && j<len;i++, j++) {
-				const char cont = this->content[this->content.length()-i-1];
-				const char c = cmp[len-j-1];
-				if(toupper(cont) != toupper(c)) {
-					return false;
-				}
+			dataPtr++; str++;
+		}
+		return len > 0;
+	}
+
+	bool endsWith(const char* token) const {
+		size_t len = this->getSafeSize(token);
+		if (len == INVALID_LENGTH) {
+			return false;
+		}
+		const char *dataPtr = this->toConstChar() + this->getLength() - 1;
+		const char *tokenEnd = token + len - 1;
+		for (int i = this->getLength() - 1, j = len - 1; i >= 0 && j >= 0; i--, j--) {
+			if (*dataPtr != *tokenEnd) {
+				return false;
 			}
-			return true;
+			dataPtr--; tokenEnd--;
 		}
+		return len > 0;
+	}
 
-		__inline size_t lastPositionOf(const char *buf) const {
-			return this->lastPositionOf(String(buf));
-		}
+	__inline bool endsWith(const String& other) const {
+		return this->endsWith(other.toConstChar());
+	}
 
-		 size_t lastPositionOf(const String& str) const {
-			 if (str.length() >= this->length()) {
-				 return 0;
-			 }
-			 unsigned int pos = this->length();
-			 bool overlap = true;
-			 for (unsigned int i = this->length(); i > 0 && i >= str.length(); i--) {
-				 if (this->content[i-1] == str.content[str.length()-1]) {
-					 overlap = true;
-					 for (int k=str.length()-1;k >= 0;k--) {
-						 //fghi
-						 //fg
-						 //i-1 = 1, k = 1, len = 2
-						 const char* tempArr = &this->content.c_str()[(i - 1) - (str.length() - k - 1)];
-						 if (this->content[(i - 1) - (str.length() - k - 1)] != str[k]) {
-							 i -= str.length() - k - 1;
-							 overlap = false;
-							 break;
-						 }
-					 }
-					 if (overlap) {
-						 return (i-str.length());
-					 }
-				 }
-			 }
-			 return pos;
+	void replace(const char* tokenToFind, const char* tokenToReplaceWith) {
+		size_t len = this->getSafeSize(tokenToFind);
+		if (len == INVALID_LENGTH) {
+			return;
 		}
-
-		 __inline void clear() {
-			 this->content.clear();
-		 }
-
-		__inline size_t positionOf(const char *buf) const {
-			return this->content.find(buf);
-		}
-
-		__inline size_t positionOf(const std::string buf) const {
-			return this->positionOf(buf.c_str());
-		}
-
-		String* split(const char *splitToken, unsigned long *splitAmount) const;
-
-		String toUpper() const;
-
-		__inline const char *toConstChar() const {
-			return this->content.c_str();
-		}
-
-		__inline bool toBool() const {
-			return _stricmp("true", this->content.c_str()) == 0;
-		}
-		__inline unsigned char toByte() const {
-			return static_cast<unsigned char>(this->toInt());
-		}
-		__inline unsigned short toShort() const {
-			return static_cast<unsigned short>(this->toInt());
-		}
-		__inline unsigned int toInt() const {
-			return atoi(this->content.c_str());
-		}
-		__inline double toDouble() const {
-			return atof(this->content.c_str());
-		}
-		__inline float toFloat() const {
-			return static_cast<float>(this->toDouble());
-		}
-
-		static String fromBool(const bool value) {
-			char buf[0x6] = { 0x00 };
-			SPRINTF(buf, "%s", (value == true ? "true" : "false"));
-			return String(buf);
-		}
-
-		static String fromInt(const unsigned long num) {
-			char buf[0x30] = { 0x00 };
-			SPRINTF(buf, "%ld", num);
-			return String(buf);
-		}
-
-		static String fromLong(const unsigned long long n) {
-			char buf[0x80] = { 0x00 };
-			SPRINTF(buf, "%llu", n);
-			return String(buf);
-		}
-
-		static String fromHex(const void *p) {
-			char buf[0x80] = { 0x00 };
-			SPRINTF(buf, "0x%p", p);
-			return String(buf);
-		}
-
-		static String fromHex(const unsigned long long p) {
-			char buf[0x80] = { 0x00 };
-			SPRINTF(buf, "0x%x", p);
-			return String(buf);
-		}
-
-		static String fromFloat(const float f) {
-			char buf[0x100] = { 0x00 };
-			SPRINTF(buf, "%f", f);
-			return String(buf);
-		}
-
-#ifdef _MSC_VER
-#pragma warning(disable:4996)
-#endif
-		static String fromIntArray(const unsigned int amount, unsigned int *arr) {
-			char buf[0x300] = {0x00};
-			SPRINTF(buf, "%i", arr[0]);
-			for(unsigned int i=1;i<amount;i++) {
-				char *tmp = &buf[strlen(buf)];
-				sprintf(tmp, ",%i", arr[i]);
+		String replaceToken = String(tokenToReplaceWith);
+		String result = (*this);
+		for (int i = this->getLength() - len - 1; i >= 0; i--) {
+			size_t pos = result.findFirstOf(tokenToFind, i);
+			if (pos != INVALID_LENGTH) {
+				result = result.substring(0, pos) + replaceToken + result.substring(pos + len);
 			}
-			return String(buf);
 		}
-#ifdef _MSC_VER
-#pragma warning(default:4996)
-#endif
+		(*this) = std::move(result);
+	}
 
-		friend std::ostream& operator<<(std::ostream& out, const String& s) {
-			const char *ptr = s.toConstChar();
-			out << ptr;
-			return out;
+	void replaceOnce(const char tokenToFind, const char* tokenToReplaceWith) {
+		char buf[2] = { tokenToFind, 0x00 };
+		this->replaceOnce(buf, tokenToReplaceWith);
+	}
+
+	void replaceOnce(const char* tokenToFind, const char* tokenToReplaceWith) {
+		size_t len = this->getSafeSize(tokenToFind);
+		if (len == INVALID_LENGTH) {
+			return;
 		}
+		unsigned long pos = this->findFirstOf(tokenToFind);
+		if (pos != INVALID_LENGTH) {
+			(*this) = this->substring(0, pos) + String(tokenToReplaceWith) + this->substring(pos + len);
+		}
+	}
+
+	unsigned long getAmountOfTokens(const char token) {
+		unsigned long result = 0x00;
+		char* thisData = this->data;
+		for (unsigned int i = 0; i < this->getLength(); i++, thisData++) {
+			if (*thisData == token) {
+				result++;
+			}
+		}
+		return result;
+	}
+
+	String* split(const char token, unsigned long* lenOut) {
+		unsigned int amount = getAmountOfTokens(token) + 1;
+		String *holder = new String[amount];
+		unsigned int lastPos = 0x00;
+		unsigned int idx = 0x00;
+		char* thisData = this->data; 
+		String cpy(*this);
+		while ((lastPos = cpy.findFirstOf(token)) != INVALID_LENGTH) {
+			holder[idx++] = cpy.substring(0, lastPos);
+			cpy = cpy.substring(lastPos + 1);
+		}
+		holder[idx] = cpy;
+		if (lenOut) {
+			(*lenOut) = amount;
+		}
+		return holder;
+	}
+
+	String toUpper() const {
+		String str; str.reserve(this->getLength());
+		for (unsigned int i = 0; i < this->getLength(); i++) {
+			str += toupper((*this)[i]);
+		}
+		str[this->getLength()] = 0x00;
+		return str;
+	}
+
+	__inline void reserve(const unsigned long len) {
+		this->data.set(new char[len + 1], len);
+	}
+	__inline void clear() {
+		(*this) = String();
+	}
+
+	__inline const char* toConstChar() const {
+		return this->data.toConstChar();
+	}
+
+	__inline size_t getLength() const {
+		return this->length;
+	}
+	__inline bool isEmpty() const {
+		return this->getLength() <= 0;
+	}
+
+	__inline bool toBool() const {
+		return (this->contentEquals("true") ? true : false);
+	}
+	__inline float toFloat() const {
+		return static_cast<float>(atof(this->toConstChar()));
+	}
+	__inline unsigned long toUInt() const {
+		return atoi(this->toConstChar());
+	}
+	__inline long toInt() const {
+		return static_cast<signed long>(this->toUInt());
+	}
+	__inline unsigned short toUShort() const {
+		return static_cast<unsigned short>(this->toUInt());
+	}
+	__inline short toShort() const {
+		return static_cast<short>(this->toUInt());
+	}
+	__inline unsigned char toByte() const {
+		return static_cast<unsigned char>(this->toUInt());
+	}
+
+	static String fromBool(bool flag) {
+		return internalFromConverter<char*>("%s", (flag == true ? "true" : "false"));
+	}
+	static String fromLong(const unsigned long long val) {
+		return internalFromConverter<unsigned long long>("%lld", val);
+	}
+	static String fromHex(const unsigned long val) {
+		return internalFromConverter<unsigned long>("0x%x", val);
+	}
+	static String fromInt(const unsigned long val) {
+		return internalFromConverter<unsigned long>("%d", val);
+	}
 };
 
 #endif

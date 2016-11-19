@@ -11,7 +11,8 @@ class Monster : public NPC {
 private:
 	class MonsterSpawn* spawnReference;
 public:
-	explicit Monster(const word_t typeId, class MonsterSpawn* spawnRef);
+	Monster(const word_t typeId, const byte_t mapId, const Position& pos, class MonsterSpawn* spawnRef);
+	virtual ~Monster();
 	void onDeath();
 
 	__inline MonsterSpawn* getSpawn() const {

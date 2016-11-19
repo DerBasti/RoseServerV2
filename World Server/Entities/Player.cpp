@@ -1,14 +1,22 @@
 #include "Player.h"
 #include "..\..\Common\PacketIDs.h"
 #include "..\WorldServer.h"
+#include "Monster.h"
 
 FunctionBinder<Player, unsigned long, bool(Player::*)()> Player::PACKET_FUNCTIONS = {
 	{ PacketID::World::Request::GET_ID, &Player::pakAssignId },
 	{ PacketID::World::Request::IDENFITY, &Player::pakIdentify },
-	{ PacketID::World::Request::TELEGATE, &Player::pakTeleport }
+	{ PacketID::World::Request::MOVEMENT_PLAYER, &Player::pakMovement },
+	{ PacketID::World::Request::TELEGATE, &Player::pakTeleport },
+	{ PacketID::World::Request::LOCAL_CHAT, &Player::pakLocalChat }
+};
+
+StaticFunctionBinder < String, void(*)(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens), void*> GM_FUNCTIONS = {
+	{ String("/tele"), &GMService::teleport }
 };
 
 Player::Player(NetworkInterface* iFace, const CryptInfo& cryptInfo) : ROSESocketClient(iFace, cryptInfo) {
+	
 };
 
 Player::~Player() {
@@ -92,7 +100,7 @@ bool Player::loadCharacterInventory() {
 		auto row = result->getRow(i);
 		byte_t slotId = row.get(0x01).toByte();
 		Item& item = this->getCharacter()->getInventory()->get(slotId);
-		item = Item(row.get(0x02).toInt() / 10000, row.get(0x02).toInt() % 10000);
+		item = Item(static_cast<byte_t>(row.get(0x02).toInt() / 10000), static_cast<word_t>(row.get(0x02).toInt() % 10000));
 		item.setDurability(row.get(0x03).toByte());
 		item.setLifeSpan(row.get(0x04).toShort());
 		item.setAmount(row.get(0x05).toInt());
@@ -247,6 +255,8 @@ bool Player::sendQuestData() {
 }
 
 bool Player::pakAssignId() {
+	this->getPositionInformation()->getMap()->addEntity(this);
+
 	Packet pak(PacketID::World::Response::ASSIGN_ID);
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addWord(this->getStats()->getHP());
@@ -269,7 +279,6 @@ bool Player::pakAssignId() {
 
 	//White icon (friendly)
 	pak.addDWord(0x00);
-
 	this->getBasicInformation()->setIngameFlag(true);
 
 	return this->sendPacket(pak) && this->sendWeightPercentage();
@@ -291,8 +300,138 @@ bool Player::pakIdentify() {
 	return this->sendPlayerInformation() && this->sendInventory() && this->sendQuestData() && this->sendGamingPlan();
 }
 
+bool Player::pakMovement() {
+	float newX = this->getPacket().getFloat(0x02);
+	float newY = this->getPacket().getFloat(0x06);
+
+	this->getPositionInformation()->setDestination(Position(newX, newY));
+
+	Packet pak(PacketID::World::Response::MOVEMENT_PLAYER);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addWord(0x00);//pak.addWord(target != nullptr ? target->getLocalId() : 0x00);
+	pak.addWord(this->getStats()->getMovementSpeed());
+	pak.addFloat(newX);
+	pak.addFloat(newY);
+	pak.addWord(0xcdcd); //Z
+
+	//TODO: SendToVisible
+	return this->sendPacket(pak);
+}
+
 bool Player::pakTeleport() {
+	word_t teleGateId = this->getPacket().getWord(0x00);
+	Telegate* gate = ROSEServer::getServer<WorldServer>()->getTelegate(teleGateId);
+	if (gate == nullptr) {
+		return false;
+	}
+	return this->sendTeleport(gate->getDestination().getMapId(), gate->getDestination().getPosition());
+}
+
+bool Player::pakLocalChat() {
+	String msg = this->getPacket().getString(0x00);
+	if (msg[0] == '/') {
+		unsigned long amount = 0x00;
+		String* ptr = msg.split(' ', &amount);
+		SharedArrayPtr<String> split(ptr, amount);
+		auto function = GM_FUNCTIONS.getProcessingFunction(split.at(0));
+		if (function) {
+			function(this, split);
+		}
+		return true;
+	}
+	Packet pak(PacketID::World::Response::LOCAL_CHAT);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addString(msg);
+	return this->sendPacket(pak); //TODO: To Visible
+}
+
+bool Player::sendTeleport(const byte_t mapId, const Position& pos) {
+	Packet pak(PacketID::World::Response::TELEGATE);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addWord(mapId);
+	pak.addFloat(pos.getX());
+	pak.addFloat(pos.getY());
+	pak.addWord(0x01);
+	if (!this->sendPacket(pak)) {
+		return false;
+	}
+	this->getBasicInformation()->setIngameFlag(false);
+	this->getPositionInformation()->getMap()->removeEntity(this);
+	this->getPositionInformation()->setCurrent(pos);
+	this->getPositionInformation()->setDestination(pos);
+	this->getPositionInformation()->setMap(ROSEServer::getServer<WorldServer>()->getMap(mapId));
 	return true;
+}
+
+bool Player::sendEntityVisuallyAdded(Entity* entity) {
+	word_t id = 0x00;
+	if (entity->isPlayer()) {
+		id = PacketID::World::Response::SPAWN_PLAYER;
+	}
+	else if (entity->isNPC()) {
+		id = PacketID::World::Response::SPAWN_NPC;
+	}
+	else if (entity->isMonster()) {
+		id = PacketID::World::Response::SPAWN_MONSTER;
+	}
+	Packet pak(id);
+	pak.addWord(entity->getBasicInformation()->getLocalId());
+	pak.addPosition(entity->getPositionInformation()->getCurrent());
+	pak.addPosition(entity->getPositionInformation()->getDestination());
+	pak.addWord(0x00); //What is he currently doing?
+	pak.addWord(0x00); //Target
+	pak.addByte(0x01); //Stance
+	pak.addDWord(this->getStats()->getHP());
+	pak.addDWord(this->isMonster() ? 0x100 : 0x00); //Team = who is the enemy?
+	pak.addDWord(0x00); //Buffs
+	if (entity->isPlayer()) {
+		return this->sendPlayerVisuallyAdded(entity, pak);
+	}
+	else if (entity->isNPC()) {
+		return this->sendNPCVisuallyAdded(entity, pak);
+	}
+	return this->sendMonsterVisuallyAdded(entity, pak);
+}
+
+bool Player::sendPlayerVisuallyAdded(Entity* entity, Packet& pak) {
+	if (!entity || !entity->isPlayer()) {
+		return false;
+	}
+	Player* other = static_cast<Player*>(entity);
+	pak.addByte(other->getCharacter()->getAppearance()->getSex());
+	pak.addWord(other->getStats()->getMovementSpeed());
+	return this->sendPacket(pak);
+}
+
+bool Player::sendNPCVisuallyAdded(Entity* entity, Packet& pak) {
+	if (!entity || !entity->isNPC()) {
+		return false;
+	}
+	NPC* npc = static_cast<NPC*>(entity);
+	pak.addWord(npc->getTypeId());
+	pak.addWord(npc->getTypeId() - 900); //Conversation Id
+	pak.addFloat(npc->getDirection());
+	pak.addWord(0x00);
+	return this->sendPacket(pak);
+}
+
+bool Player::sendMonsterVisuallyAdded(Entity* entity, Packet& pak) {
+	if (!entity || !entity->isMonster()) {
+		return false;
+	}
+	Monster* mon = static_cast<Monster*>(entity);
+	pak.addWord(mon->getTypeId());
+	pak.addWord(0x00);
+	return this->sendPacket(pak);
+}
+
+bool Player::sendEntityVisuallyRemoved(Entity* entity) {
+	if (!entity) {
+		return false;
+	}
+	Packet pak(PacketID::World::Response::REMOVE_VISIBLE_ENTITY);
+	pak.addWord(entity->getBasicInformation()->getLocalId());
+ 	return this->sendPacket(pak);
 }
 
 bool Player::handlePacket() {
@@ -302,4 +441,22 @@ bool Player::handlePacket() {
 		(this->*function)();
 	}
 	return true;
+}
+
+void GMService::teleport(Player* executingPlayer, SharedArrayPtr<String>& splitCmd) {
+	if (splitCmd.getSize() < 2) {
+		return;
+	}
+	auto worldServer = ROSEServer::getServer<WorldServer>();
+	unsigned char mapId = splitCmd.at(1).toByte();
+	Map *map = worldServer->getMap(mapId);
+	if (map) {
+		float x = 520000.0f;
+		float y = 520000.0f;
+		if (splitCmd.getSize() >= 4) {
+			x = static_cast<float>(splitCmd.at(2).toInt()) * 100;
+			y = static_cast<float>(splitCmd.at(3).toInt()) * 100;
+		}
+		executingPlayer->sendTeleport(mapId, Position(x, y));
+	}
 }

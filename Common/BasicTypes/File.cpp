@@ -107,7 +107,7 @@ bool File::createSubdirectory(const String& dirName) const {
 	if (this->isFolder() && !currentPath.endsWith("\\")) {
 		currentPath += "\\";
 	}
-	int lastPosition = currentPath.lastPositionOf("\\") + 1;
+	int lastPosition = currentPath.findLastOf("\\") + 1;
 	String newPath = currentPath.substring(0, lastPosition);
 #ifdef _WIN32
 	return CreateDirectoryA((newPath + dirName).toConstChar(), NULL) != 0;

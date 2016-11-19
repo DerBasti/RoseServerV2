@@ -14,7 +14,7 @@ IFO::IFO(const String& path, const SharedArrayPtr<char>& data) {
 		if (type != IFO::Entry::NPC_ENTRY && type != IFO::Entry::SPAWN_ENTRY && type != IFO::Entry::TELEGATE_ENTRY) {
 			continue;
 		}
-		dword_t oldOffset = bfr.getCaret();
+		qword_t oldOffset = bfr.getCaret();
 		bfr.setCaret(offset);
 
 		dword_t typeAmount = bfr.readDWord();
@@ -27,7 +27,7 @@ IFO::IFO(const String& path, const SharedArrayPtr<char>& data) {
 					this->spawns.push_back(IFO::Spawn(bfr));
 				break;
 				case IFO::Entry::TELEGATE_ENTRY:
-					this->telegates.push_back(IFO::Telegate(bfr));
+					this->telegates.push_back(IFO::TelegateSource(bfr));
 				break;
 			}
 		}
@@ -43,7 +43,8 @@ IFO::~IFO() {
 IFO::Entry::Entry(BufferedFileReader& bfr) {
 	byte_t len = bfr.readByte();
 	String str = bfr.readString(len);
-	bfr.setCaret(bfr.getCaret() + (sizeof(word_t)* 2)); //Unknown + EventId
+	this->unknownValue = bfr.readWord();
+	bfr.setCaret(bfr.getCaret() + (sizeof(word_t))); //Unknown + EventId
 	this->objectType = bfr.readDWord();
 	this->objectId = bfr.readDWord();
 	bfr.setCaret(bfr.getCaret() + (sizeof(dword_t)* 2)); //MapPosX + MapPosY
@@ -99,6 +100,9 @@ IFO::Spawn::Spawn(BufferedFileReader& bfr) : IFO::Entry(bfr) {
 			String roundName = bfr.readString(len);
 			dword_t mobId = bfr.readDWord();
 			dword_t amount = bfr.readDWord();
+			if (amount == 0) {
+				continue;
+			}
 
 			Round newRound(roundName, static_cast<word_t>(mobId), static_cast<word_t>(amount), i == 1);
 

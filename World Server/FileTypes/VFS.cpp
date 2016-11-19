@@ -61,7 +61,7 @@ std::vector<String> VFS::extractVFSNames(unsigned long vfsCount) {
 	return vfsNames;
 }
 
-void VFS::extractFilePaths(std::vector<String> vfsNames, std::vector<String> fileEndingsToLoad, bool excludeDifferentFileEndings) {
+void VFS::extractFilePaths(std::vector<String> vfsNames, std::vector<String>& fileEndingsToLoad, bool excludeDifferentFileEndings) {
 	const unsigned short MAX_LEN = 0x100;
 	for (unsigned long i = 0; i < vfsNames.size(); i++) {
 		unsigned long fileCount = this->GetFileCount(this->getVFSHandle(), vfsNames[i].toConstChar());
@@ -115,7 +115,7 @@ SharedArrayPtr<char> VFS::readFile(const String& path) {
 	return tempBuf;
 }
 
-void VFS::extractFileContent(std::vector<String> fileEndingsToLoad) {
+void VFS::extractFileContent(std::vector<String>& fileEndingsToLoad) {
 	std::for_each(this->begin(), this->end(), [&](std::pair<const String, Entry>& p) {
 		for (unsigned int i = 0; i < fileEndingsToLoad.size(); i++) {
 			if (p.first.endsWith(fileEndingsToLoad[i])) {
@@ -126,6 +126,9 @@ void VFS::extractFileContent(std::vector<String> fileEndingsToLoad) {
 	});
 }
 std::vector<VFS::Entry> VFS::getEntriesFromPath(const String& path, std::vector<String> fileEndingsToGet) const {
+	if (path.isEmpty()) {
+		return std::vector<VFS::Entry>();
+	}
 	std::vector<VFS::Entry> resultSet;
 	String pathAsUpperCase = path.toUpper();
 	bool hasFileEndings = fileEndingsToGet.size() > 0;
@@ -133,7 +136,7 @@ std::vector<VFS::Entry> VFS::getEntriesFromPath(const String& path, std::vector<
 	std::function<void(const std::pair<const String, VFS::Entry>&)> getterFunction;
 	if (hasFileEndings) {
 		getterFunction = [&](const std::pair<const String, VFS::Entry>& pair) {
-			if (pair.first.contains(pathAsUpperCase)) {
+			if (pair.first.startsWith(pathAsUpperCase)) {
 				for (unsigned int i = 0; i < fileEndingsToGet.size(); i++) {
 					if (pair.first.endsWith(fileEndingsToGet[i])) {
 						resultSet.push_back(pair.second);
@@ -144,7 +147,7 @@ std::vector<VFS::Entry> VFS::getEntriesFromPath(const String& path, std::vector<
 		};
 	} else {
 		getterFunction = [&](const std::pair<const String, VFS::Entry>& pair) {
-			if (pair.first.contains(pathAsUpperCase)) {
+			if (pair.first.startsWith(pathAsUpperCase)) {
 				resultSet.push_back(pair.second);
 			}
 		};

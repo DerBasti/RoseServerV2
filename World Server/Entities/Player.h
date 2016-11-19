@@ -349,10 +349,19 @@ private:
 	bool sendQuestData();
 	bool sendInventory();
 	bool sendWeightPercentage();
+	bool sendTeleport();
+
+	bool sendEntityVisuallyAdded(Entity* entity);
+	bool sendPlayerVisuallyAdded(Entity* entity, Packet& pak);
+	bool sendNPCVisuallyAdded(Entity* entity, Packet& pak);
+	bool sendMonsterVisuallyAdded(Entity* entity, Packet& pak);
+	bool sendEntityVisuallyRemoved(Entity* entity);
 
 	bool pakAssignId();
 	bool pakIdentify();
 	bool pakTeleport();
+	bool pakMovement();
+	bool pakLocalChat();
 public:
 	Player(NetworkInterface* IFace, const CryptInfo& cryptInfo);
 	virtual ~Player();
@@ -367,6 +376,15 @@ public:
 	}
 
 	__inline bool isPlayer() const { return true; }
+	bool sendTeleport(const byte_t mapId, const Position& pos);
+};
+
+class GMService {
+private:
+	GMService() {}
+	~GMService() {}
+public:
+	static void teleport(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
 };
 
 #endif

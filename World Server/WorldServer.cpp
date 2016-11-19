@@ -28,23 +28,62 @@ WorldServer::WorldServer(const String& IP, unsigned short port, MYSQL* mysql) : 
 	this->loadSTB<ZoneSTB>(zoneFile, "3DDATA\\STB\\LIST_ZONE.STB");
 	this->loadSTB<STB>(motionFile, "3DDATA\\STB\\TYPE_MOTION.STB", false);
 	this->loadSTB<STB>(dropFile, "3DDATA\\STB\\ITEM_DROP.STB");
+	this->loadSTB<STB>(warpFile, "3DDATA\\STB\\WARP.STB");
 
+	this->loadZoneData();
+}
+
+WorldServer::~WorldServer() {
+	std::for_each(this->maps.begin(), this->maps.end(), [](Map* map) {
+		delete map;
+		map = nullptr;
+	});
+}
+
+
+void WorldServer::loadZoneData() {
+	std::map<word_t, std::vector<VFS::Entry>> zoneFoldersWithIFOFiles;
 	for (unsigned int i = 0; i < zoneFile->getEntryAmount(); i++) {
 		String zoneFileName = zoneFile->getZoneFile(i);
 		auto entry = VFS::get()->getEntry(zoneFileName);
 		ZON* zoneData = nullptr;
 		if (entry.getContent().getSize() > 0) {
 			zoneData = new ZON(zoneFileName, entry.getContent());
+			zoneData->setSectorSize(this->zoneFile->getZoneSize(i));
 		}
-		//String zoneFolder = zoneFileName.substring(0, zoneFileName.lastPositionOf("\\") + 1);
-		//std::vector<VFS::Entry> ifoFiles; = this->vfs->getEntriesFromPath(zoneFolder, String(".ifo"));
-		std::vector<IFO> ifos;
-		this->maps.push_back(new Map(i, zoneData, ifos));
+		String zoneFolder = zoneFileName.substring(0, zoneFileName.findLastOf("\\") + 1);
+		std::vector<VFS::Entry> ifoFiles = this->vfs->getEntriesFromPath(zoneFolder, String(".ifo"));
+		zoneFoldersWithIFOFiles[i] = ifoFiles;
+		this->maps.push_back(new Map(i, zoneData, ifoFiles));
+	}
+	for (unsigned int i = 0; i<zoneFile->getEntryAmount(); i++) {
+		this->loadIFOs(this->maps[i], zoneFoldersWithIFOFiles[i]);
 	}
 }
 
-WorldServer::~WorldServer() {
+void WorldServer::loadIFOs(Map *currentMap, std::vector<VFS::Entry>& ifoFiles) {
+	std::for_each(ifoFiles.begin(), ifoFiles.end(), [&](VFS::Entry& entry) {
+		IFO ifo(entry.getPathInVFS(), entry.getContent());
+		std::for_each(ifo.getSpawns().begin(), ifo.getSpawns().end(), [&](IFO::Spawn spawn) {
+			currentMap->addSpawn(spawn);
+		});
+		std::for_each(ifo.getNPCs().begin(), ifo.getNPCs().end(), [&](IFO::NPC npc) {
+			currentMap->addNPC(npc);
+		});
 
+		std::for_each(ifo.getTelegateSources().begin(), ifo.getTelegateSources().end(), [&](IFO::TelegateSource& tele) {
+			STB::Entry* row = this->warpFile->getEntry(tele.getUnknownValue());
+			byte_t destMapId = row->get(0x01).toByte();
+			String gateName = row->get(0x02);
+			Map* destMap = this->getMap(destMapId);
+			const ZON::EventInformation* event = nullptr;
+			if (destMap && destMap->isValid() && (event = destMap->getZoneData()->getEvent("start")) != nullptr) {
+				SingleTelegate src(tele.getPosition(), currentMap->getId());
+				SingleTelegate dest(event->getPosition(), destMapId);
+				currentMap->addTelegate(src, dest);
+			}
+		});
+	});
 }
 
 NetworkClient* WorldServer::onClientConnected(NetworkInterface *iFace) {
@@ -52,7 +91,28 @@ NetworkClient* WorldServer::onClientConnected(NetworkInterface *iFace) {
 }
 
 void WorldServer::onRequestsFinished() {
-	std::for_each(this->maps.begin(), this->maps.end(), [&](Map* map) {
-		if (map->)
+	std::for_each(this->maps.begin(), this->maps.end(), [this](Map* map) {
+		if (map->isActive()) {
+			std::for_each(map->beginEntities(), map->endEntities(), [&](std::pair<const word_t, Entity*>& p) {
+				auto currentEntity = p.second;
+				currentEntity->doAction();
+				if (currentEntity->isPlayer()) {
+					this->logger.info("Player's turn.");
+				}
+				if (map->updateEntity(currentEntity)) {
+				}
+			});
+		}
 	});
+}
+
+void WorldServer::onClientDisconnect(NetworkInterface* iFace) {
+	for (NetworkClient* client : clients) {
+		Player* player = static_cast<Player*>(client);
+		player->getVisuality()->forceClear();
+		Map* map = player->getPositionInformation()->getMap();
+		if (map != nullptr) {
+			map->removeEntity(player);
+		}
+	}
 }

@@ -45,7 +45,7 @@ private:
 	std::vector<STL::Entry> entries;
 public:
 	STL(const SharedArrayPtr<char> data) {
-		BufferedFileReader bfr(data, data.getSize());
+		BufferedFileReader bfr(data, data.getSize(), false);
 		unsigned char len = bfr.readByte();
 		String hasDescriptionString = bfr.readString(len);
 

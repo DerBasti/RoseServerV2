@@ -78,12 +78,12 @@ class VFS {
 		GetFileSize_FUNCPTR GetFileSize;
 
 		std::vector<String> extractVFSNames(unsigned long vfsCount);
-		__inline void extractFilePaths(std::vector<String> vfsNames, std::vector<String> fileEndingsToLoad) {
+		__inline void extractFilePaths(std::vector<String> vfsNames, std::vector<String>& fileEndingsToLoad) {
 			this->extractFilePaths(vfsNames, fileEndingsToLoad, false);
 		}
-		void extractFilePaths(std::vector<String> vfsNames, std::vector<String> fileEndingsToLoad, bool excludeDifferentFileEndings);
+		void extractFilePaths(std::vector<String> vfsNames, std::vector<String>& fileEndingsToLoad, bool excludeDifferentFileEndings);
 		SharedArrayPtr<char> readFile(const String& path);
-		void extractFileContent(std::vector<String> fileEndingsToLoad);
+		void extractFileContent(std::vector<String>& fileEndingsToLoad);
 	protected:
 		__inline unsigned long getVFSHandle() const {
 			return this->vfsHandle;

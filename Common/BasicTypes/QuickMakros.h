@@ -14,6 +14,15 @@
                 className(const className& it) : className(it.data) { \
                      \
                 } \
+				className& operator+=(int val) { \
+					data += val;\
+					return (*this);\
+				}\
+				className operator+(int val) { \
+					iterator copy(*this);\
+					copy += val;\
+					return copy;\
+				}\
                 className& operator++() {++data; return *this;} \
                 className operator++(int) {className tmp(*this); operator++(); return tmp;} \
                 bool operator==(const className& rhs) {return data==rhs.data;} \

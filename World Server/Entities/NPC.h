@@ -12,9 +12,11 @@ private:
 	float dir;
 protected:
 	word_t typeId;
+	String name;
 public:
+	
 	NPC() {}
-	NPC(const word_t npcId, const float direction);
+	NPC(const word_t npcId, const byte_t mapId, const Position& pos, const float direction);
 	virtual ~NPC() {}
 
 	__inline word_t getTypeId() const {
@@ -22,6 +24,10 @@ public:
 	}
 
 	__inline virtual bool isNPC() const { return true; }
+	__inline float getDirection() const {
+		return this->dir;
+	}
+
 };
 
 #endif //__ROSE_NPC__

@@ -48,7 +48,7 @@ class FileWriter : public BasicObject {
         }
 
         __inline bool writeString(const String& s) const {
-        	return this->getFile()->exists() && (fwrite(s.toConstChar(), 1,s.length(), this->getHandle()) == s.length());
+        	return this->getFile()->exists() && (fwrite(s.toConstChar(), 1,s.getLength(), this->getHandle()) == s.getLength());
 		}
 		__inline bool writeLine(const char *s) const {
 			return this->writeLine(String(s));

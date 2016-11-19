@@ -4,6 +4,7 @@
 #include "FileTypes\IFO.h"
 #include "FileTypes\AIP.h"
 
+
 int main() {
 	/*VFS vfs("D:\\Games\\iRose Online\\", true);
 	auto zoneSTBData = vfs.getEntry("3DDATA\\STB\\LIST_ZONE.STB");
@@ -21,12 +22,11 @@ int main() {
 		std::for_each(ifoFiles.begin(), ifoFiles.end(), [](VFS::Entry& ifo) {
 			IFO ifoData(ifo.getPathInVFS(), ifo.getContent());
 		});
-	}
-	*/
+	}*/
 	MYSQL mysql;
 	String workPath = File::GetWorkingDirectory();
 	Config cfg(workPath + String("config.conf"));
-	WorldServer ws(cfg.get("WorldIp", "127.0.0.1"), cfg.get("WorldPort", "29200").toInt(), &mysql);
+	WorldServer ws(cfg.get("WorldIp", "127.0.0.1"), cfg.get("WorldPort", "29200").toUShort(), &mysql);
 	ws.loadEncryption();
 	ws.start();
 	return 0;

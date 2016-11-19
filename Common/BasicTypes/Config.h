@@ -26,10 +26,10 @@ public:
 		String line = String();
 		while (!fr.hasInvalidState()) {
 			line = fr.readLine();
-			if (line.isEmpty() || (line.length() == 1 && (line[0] == '\r' || line[0] == '\n'))) {
+			if (line.isEmpty() || (line.getLength() == 1 && (line[0] == '\r' || line[0] == '\n'))) {
 				continue;
 			}
-			SharedArrayPtr<String> tokenized(line.split("=", nullptr), 2);
+			SharedArrayPtr<String> tokenized(line.split('=', nullptr), 2);
 			if (tokenized.at(0)[0] == '#') {
 				continue;
 			}

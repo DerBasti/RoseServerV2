@@ -41,12 +41,13 @@ class FileReader : public BasicObject {
         String readStringWithPredicate(std::function<unsigned char(unsigned char, unsigned long long)> f) {
             String result = String();
             unsigned char c = 0x00;
+			unsigned totalReadBytes = 0x00;
             while(!this->isInInvalidState()) {
-				c = this->readByte();
+				c = this->readByte(); totalReadBytes++;
 				result += c;
-                unsigned char predResult = f(c, result.length());
+				unsigned char predResult = f(c, totalReadBytes);
 				if (predResult & (STRING_READ_ABORT | STRING_READ_SKIP)) {
-					result = result.length() == 1 ? String() : result.substring(0, result.length() - 1);
+					result = result.getLength() == 1 ? String() : result.substring(0, result.getLength() - 1);
 				}
 				if (predResult & (STRING_READ_ABORT | STRING_MAX_LENGTH)) {
 					break;

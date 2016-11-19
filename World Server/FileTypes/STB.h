@@ -18,7 +18,7 @@ class STB {
 					this->content.reserve(columnAmount);
 					for (unsigned int i = 0; i < columnAmount; i++) {
 						unsigned short length = bfr.readWord();
-						this->content.push_back(bfr.readString(length));
+ 						this->content.push_back(bfr.readString(length));
 					}
 				}
 				virtual ~Entry() { }
@@ -30,13 +30,13 @@ class STB {
 				}
 		};
 	private:
-		std::vector<STB::Entry> entries;
+		std::vector<STB::Entry*> entries;
 		String filePath;
 	public:
-		typedef std::vector<STB::Entry>::iterator iterator;
+		typedef std::vector<STB::Entry*>::iterator iterator;
 
-		STB(const String& pathInVFS, const SharedArrayPtr<char> data) : STB(pathInVFS, data, true) {}
-		STB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) {
+		STB(const String& pathInVFS, const SharedArrayPtr<char>& data) : STB(pathInVFS, data, true) {}
+		STB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) {
 			this->filePath = pathInVFS;
 			BufferedFileReader bfr(data.get(), data.getSize(), false);
 			bfr.setCaret(0x04);
@@ -48,18 +48,26 @@ class STB {
 			unsigned long columnCount = bfr.readDWord() - 1;
 			bfr.setCaret(offset);
 			for (unsigned int i = 0; i < entryCount; i++) {
-				this->entries.push_back(STB::Entry(bfr, columnCount));
+				this->entries.push_back(new STB::Entry(bfr, columnCount));
 			}
 			if (applySTL) {
-				String STLPath = this->getFilePath().substring(0, this->getFilePath().lastPositionOf(".STB"));
+				String STLPath = this->getFilePath().substring(0, this->getFilePath().findLastOf(".STB"));
 				STLPath += String("_S.STL");
 				auto res = VFS::get()->getEntry(STLPath);
 				STL stl(res.getContent());
 				for (unsigned int i = 0; i < stl.getEntryAmount(); i++) {
 					STL::Entry stlEntry = stl.getEntry(i);
-					this->entries[stlEntry.getId()].setName(stlEntry.getName(STL::Entry::ENGLISH));
+					this->entries[stlEntry.getId()]->setName(stlEntry.getName(STL::Entry::ENGLISH));
 				}
 			}
+		}
+
+		virtual ~STB() {
+			std::for_each(this->entries.begin(), this->entries.end(), [&](STB::Entry* entry) {
+				delete entry;
+				entry = nullptr;
+			});
+			this->entries.clear();
 		}
 
 		iterator begin() {
@@ -70,8 +78,8 @@ class STB {
 			return this->entries.end();
 		}
 
-		__inline const Entry getEntry(const unsigned int id) const {
-			return this->entries.at(id);
+		__inline Entry* getEntry(const unsigned int id) const {
+			return (this->entries.size() > id ? this->entries.at(id) : nullptr);
 		}
 		__inline String getFilePath() const {
 			return this->filePath;
@@ -103,68 +111,68 @@ private:
 	const static word_t AGGRO_COLUMN = 0x1B;
 	const static word_t QUEST_STRING_COLUMN = 0x29;
 public:
-	NPCSTB(const String& pathInVFS, const SharedArrayPtr<char> data) : NPCSTB(pathInVFS, data, true) {
+	NPCSTB(const String& pathInVFS, const SharedArrayPtr<char>& data) : NPCSTB(pathInVFS, data, true) {
 	}
-	NPCSTB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+	NPCSTB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
 	__inline String getName(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::NAME_COLUMN);
+		return this->getEntry(row)->get(NPCSTB::NAME_COLUMN);
 	}
 	__inline word_t getWalkSpeed(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::WALKSPEED_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::WALKSPEED_COLUMN).toShort();
 	}
 	__inline word_t getSprintSpeed(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::SPRINTSPEED_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::SPRINTSPEED_COLUMN).toShort();
 	}
 	__inline word_t getSize(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::SIZE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::SIZE_COLUMN).toShort();
 	}
 	__inline byte_t getLevel(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::LEVEL_COLUMN).toByte();
+		return this->getEntry(row)->get(NPCSTB::LEVEL_COLUMN).toByte();
 	}
 	__inline word_t getHPperLevel(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::HP_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::HP_COLUMN).toShort();
 	}
 	__inline word_t getAttackpower(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::ATTACKPOWER_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::ATTACKPOWER_COLUMN).toShort();
 	}
 	__inline word_t getHitrate(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::HITRATE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::HITRATE_COLUMN).toShort();
 	}
 	__inline word_t getDefense(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::DEFENSE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::DEFENSE_COLUMN).toShort();
 	}
 	__inline word_t getMagicDefense(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::MAGICDEFENSE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::MAGICDEFENSE_COLUMN).toShort();
 	}
 	__inline word_t getDodgerate(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::DODGERATE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::DODGERATE_COLUMN).toShort();
 	}
 	__inline word_t getAttackspeed(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::ATTACKSPEED_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::ATTACKSPEED_COLUMN).toShort();
 	}
 	__inline word_t getExperience(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::EXPERIENCE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::EXPERIENCE_COLUMN).toShort();
 	}
 	__inline word_t getDroptableId(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::DROPTABLE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::DROPTABLE_COLUMN).toShort();
 	}
 	__inline word_t getMoneyChance(const word_t row) const {
-		return 100 - this->getEntry(row).get(NPCSTB::DROPCHANCE_COLUMN).toShort();
+		return 100 - this->getEntry(row)->get(NPCSTB::DROPCHANCE_COLUMN).toShort();
 	}
 	__inline word_t getDropChance(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::DROPCHANCE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::DROPCHANCE_COLUMN).toShort();
 	}
 	__inline word_t getAttackrange(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::ATTACKRANGE_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::ATTACKRANGE_COLUMN).toShort();
 	}
 	__inline word_t getAIFileId(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::AI_COLUMN).toShort();
+		return this->getEntry(row)->get(NPCSTB::AI_COLUMN).toShort();
 	}
 	__inline bool isNPCEntry(const word_t row) const {
-		return (this->getEntry(row).get(NPCSTB::AGGRO_COLUMN).toInt() == 999);
+		return (this->getEntry(row)->get(NPCSTB::AGGRO_COLUMN).toInt() == 999);
 	}
 	__inline String getQuestName(const word_t row) const {
-		return this->getEntry(row).get(NPCSTB::QUEST_STRING_COLUMN);
+		return this->getEntry(row)->get(NPCSTB::QUEST_STRING_COLUMN);
 	}
 };
 
@@ -180,39 +188,40 @@ private:
 	const static word_t QUEST_STRING = 0x16;
 	const static word_t ZONESIZE_COLUMN = 0x19;
 public:
-	ZoneSTB(const String& pathInVFS, const SharedArrayPtr<char> data) : ZoneSTB(pathInVFS, data, true) {
+	ZoneSTB(const String& pathInVFS, const SharedArrayPtr<char>& data) : ZoneSTB(pathInVFS, data, true) {
 	}
-	ZoneSTB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+	ZoneSTB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+
 	__inline word_t getId(const WORD row) const {
 		return row;
 	}
 	__inline String getZoneFile(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::ZONE_COLUMN);
+		return this->getEntry(row)->get(ZoneSTB::ZONE_COLUMN);
 	}
 	__inline bool getIsNightOnly(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::NIGHT_ONLY_COLUMN).toInt() > 0;
+		return this->getEntry(row)->get(ZoneSTB::NIGHT_ONLY_COLUMN).toInt() > 0;
 	}
 	__inline word_t getDayLength(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::DAYCYCLE_LENGTH).toShort();
+		return this->getEntry(row)->get(ZoneSTB::DAYCYCLE_LENGTH).toShort();
 	}
 	__inline word_t getMorningTime(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::MORNING_BEGIN).toShort();
+		return this->getEntry(row)->get(ZoneSTB::MORNING_BEGIN).toShort();
 	}
 	__inline word_t getNoonTime(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::NOON_BEGIN).toShort();
+		return this->getEntry(row)->get(ZoneSTB::NOON_BEGIN).toShort();
 	}
 	__inline word_t getEveningTime(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::EVENING_BEGIN).toShort();
+		return this->getEntry(row)->get(ZoneSTB::EVENING_BEGIN).toShort();
 	}
 	__inline word_t getNight(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::NIGHT_BEGIN).toShort();
+		return this->getEntry(row)->get(ZoneSTB::NIGHT_BEGIN).toShort();
 	}
 	__inline String getQuestString(const word_t row) const {
-		return this->getEntry(row).get(ZoneSTB::QUEST_STRING);
+		return this->getEntry(row)->get(ZoneSTB::QUEST_STRING);
 	}
 
 	dword_t getZoneSize(const word_t row) const {
-		unsigned long length = this->getEntry(row).get(ZoneSTB::ZONESIZE_COLUMN).toInt();
+		unsigned long length = this->getEntry(row)->get(ZoneSTB::ZONESIZE_COLUMN).toInt();
 		if (length == 0) {
 			length = 4000;
 		}
@@ -244,72 +253,72 @@ private:
 	const static word_t ATTACK_SPEED = 0x24;
 	const static word_t ATTACK_POWER_MAGICAL = 0x25;
 public:
-	EquipmentSTB(const String& pathInVFS, const SharedArrayPtr<char> data) : EquipmentSTB(pathInVFS, data, true) {
+	EquipmentSTB(const String& pathInVFS, const SharedArrayPtr<char>& data) : EquipmentSTB(pathInVFS, data, true) {
 	}
-	EquipmentSTB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+	EquipmentSTB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
 
 	__inline unsigned short getType(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::TYPE).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::TYPE).toShort();
 	}
 	__inline unsigned long getPrice(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::PRICE).toInt();
+		return this->getEntry(row)->get(EquipmentSTB::PRICE).toInt();
 	}
 	__inline unsigned short getPriceRate(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::PRICE_RATE).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::PRICE_RATE).toShort();
 	}
 	__inline unsigned short getWeight(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::WEIGHT).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::WEIGHT).toShort();
 	}
 	__inline unsigned short getQuality(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::QUALITY).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::QUALITY).toShort();
 	}
 	__inline unsigned short getRequiredLevel(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::REQUIRED_LEVEL).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::REQUIRED_LEVEL).toShort();
 	}
 	__inline unsigned short getCraftingReferenceId(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::CRAFTING_STB_REFERENCE).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::CRAFTING_STB_REFERENCE).toShort();
 	}
 	__inline unsigned short getUnionPoints(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::UNION_POINTS).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::UNION_POINTS).toShort();
 	}
 	__inline unsigned short getFirstStatType(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::STAT_FIRST_TYPE).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::STAT_FIRST_TYPE).toShort();
 	}
 	__inline unsigned short getFirstStatValue(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::STAT_FIRST_AMOUNT).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::STAT_FIRST_AMOUNT).toShort();
 	}
 	__inline unsigned short getSecondStatType(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::STAT_SECOND_TYPE).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::STAT_SECOND_TYPE).toShort();
 	}
 	__inline unsigned short getSecondStatValue(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::STAT_SECOND_AMOUNT).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::STAT_SECOND_AMOUNT).toShort();
 	}
 	__inline unsigned short getDurabilityMinimum(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::DURABILITY_MINIMUM).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::DURABILITY_MINIMUM).toShort();
 	}
 	__inline unsigned short getPhysicalDefense(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::DEFENSE_PHYISCAL).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::DEFENSE_PHYISCAL).toShort();
 	}
 	__inline unsigned short getMagicalDefense(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::DEFENSE_MAGICAL).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::DEFENSE_MAGICAL).toShort();
 	}
 	__inline unsigned short getAttackRange(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::ATTACK_RANGE).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::ATTACK_RANGE).toShort();
 	}
 	__inline unsigned short getMovementSpeed(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::MOVEMENT_SPEED).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::MOVEMENT_SPEED).toShort();
 	}
 	__inline unsigned short getMotionId(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::MOTION_COLUMN).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::MOTION_COLUMN).toShort();
 	}
 	__inline unsigned short getPhysicalAttackPower(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::ATTACK_POWER_PHYSICAL).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::ATTACK_POWER_PHYSICAL).toShort();
 	}
 	__inline unsigned short getAttackSpeed(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::ATTACK_SPEED).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::ATTACK_SPEED).toShort();
 	}
 	__inline unsigned short getMagicalAttackPower(unsigned short row) const {
-		return this->getEntry(row).get(EquipmentSTB::ATTACK_POWER_MAGICAL).toShort();
+		return this->getEntry(row)->get(EquipmentSTB::ATTACK_POWER_MAGICAL).toShort();
 	}
 };
 
@@ -450,71 +459,71 @@ private:
 	const static byte_t COLUMN_REQUIRED_CONDITION_AMOUNT_LAST = 0x31;
 
 public:
-	SkillSTB(const String& pathInVFS, const SharedArrayPtr<char> data) : SkillSTB(pathInVFS, data, true) {
+	SkillSTB(const String& pathInVFS, const SharedArrayPtr<char>& data) : SkillSTB(pathInVFS, data, true) {
 	}
-	SkillSTB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+	SkillSTB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
 
 	__inline unsigned short getBasicId(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_BASIC_ID).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_BASIC_ID).toShort();
 	}
 	__inline byte_t getLevel(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_LEVEL).toByte();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_LEVEL).toByte();
 	}
 	__inline unsigned short getRequiredPointsPerLevelup(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_REQUIRED_POINTS_PER_LEVELUP).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_REQUIRED_POINTS_PER_LEVELUP).toShort();
 	}
 	__inline unsigned short getSkillType(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_SKILLTYPE).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_SKILLTYPE).toShort();
 	}
 	__inline unsigned long getInitRange(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_INITRANGE).toInt();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_INITRANGE).toInt();
 	}
 	__inline unsigned short getTargetType(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_TARGETTYPE).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_TARGETTYPE).toShort();
 	}
 	__inline unsigned long getAOERange(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_AOERANGE).toInt();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_AOERANGE).toInt();
 	}
 	__inline unsigned short getAttackPower(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_ATTACKPOWER).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_ATTACKPOWER).toShort();
 	}
 	__inline bool isHarmfulEffect(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_DOESHARM).toShort() > 0;
+		return this->getEntry(row)->get(SkillSTB::COLUMN_DOESHARM).toShort() > 0;
 	}
 	__inline unsigned short getStatusId(const word_t row, bool secondInsteadOfFirstStatus) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_STATUS_FIRST + static_cast<unsigned long>(secondInsteadOfFirstStatus)).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_STATUS_FIRST + static_cast<unsigned long>(secondInsteadOfFirstStatus)).toShort();
 	}
 	__inline unsigned short getSuccessRate(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_SUCCESSRATE).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_SUCCESSRATE).toShort();
 	}
 	__inline unsigned short getDuration(const word_t row) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_DURATION).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_DURATION).toShort();
 	}
 	__inline SkillCost getSkillCost(const word_t row) const {
-		return SkillCost(this->getEntry(row).get(COLUMN_COST_TYPE_FIRST).toShort(),
-			this->getEntry(row).get(COLUMN_COST_TYPE_SECOND).toShort(),
-			this->getEntry(row).get(COLUMN_COST_AMOUNT_FIRST).toShort(),
-			this->getEntry(row).get(COLUMN_COST_AMOUNT_SECOND).toShort());
+		return SkillCost(this->getEntry(row)->get(COLUMN_COST_TYPE_FIRST).toShort(),
+			this->getEntry(row)->get(COLUMN_COST_TYPE_SECOND).toShort(),
+			this->getEntry(row)->get(COLUMN_COST_AMOUNT_FIRST).toShort(),
+			this->getEntry(row)->get(COLUMN_COST_AMOUNT_SECOND).toShort());
 	}
 	//buffOffset can be between 0 and 2
 	SkillBuff getBuff(const word_t row, const byte_t buffOffset) const {
 		unsigned short colId = COLUMN_BUFF_TYPE_FIRST + (buffOffset * 3);
-		return SkillBuff(this->getEntry(row).get(colId).toShort(),
-			this->getEntry(row).get(colId + 1).toShort(),
-			this->getEntry(row).get(colId + 2).toShort());
+		return SkillBuff(this->getEntry(row)->get(colId).toShort(),
+			this->getEntry(row)->get(colId + 1).toShort(),
+			this->getEntry(row)->get(colId + 2).toShort());
 	}
 	//weaponOffset can be between 0 and 4
 	__inline unsigned short getAllowedWeapons(const word_t row, const byte_t weaponOffset) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_WEAPONS_BEGIN + weaponOffset).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_WEAPONS_BEGIN + weaponOffset).toShort();
 	}
 	//classOffset can be between 0 and 4
 	__inline unsigned short getAllowedClasses(const word_t row, const byte_t classOffset) const {
-		return this->getEntry(row).get(SkillSTB::COLUMN_CLASS_BEGIN + classOffset).toShort();
+		return this->getEntry(row)->get(SkillSTB::COLUMN_CLASS_BEGIN + classOffset).toShort();
 	}
 	//reqOffset can be between 0 and 2
 	__inline SkillRequirement getSkillingRequirements(const word_t row, const byte_t reqOffset) const {
-		return SkillRequirement(this->getEntry(row).get(SkillSTB::COLUMN_REQUIRED_SKILL_ID_FIRST + (reqOffset * 2)).toShort(),
-			this->getEntry(row).get(SkillSTB::COLUMN_REQUIRED_SKILL_LEVEL_FIRST + (reqOffset * 2)).toShort());
+		return SkillRequirement(this->getEntry(row)->get(SkillSTB::COLUMN_REQUIRED_SKILL_ID_FIRST + (reqOffset * 2)).toShort(),
+			this->getEntry(row)->get(SkillSTB::COLUMN_REQUIRED_SKILL_LEVEL_FIRST + (reqOffset * 2)).toShort());
 	}
 };
 
@@ -528,27 +537,27 @@ private:
 	const static word_t STAT_VALUE_ADD = 0x14;
 	const static word_t STATUS_STB_REFERENCE = 0x18;
 public:
-	ConsumableSTB(const String& pathInVFS, const SharedArrayPtr<char> data) : ConsumableSTB(pathInVFS, data, true) {
+	ConsumableSTB(const String& pathInVFS, const SharedArrayPtr<char>& data) : ConsumableSTB(pathInVFS, data, true) {
 	}
-	ConsumableSTB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+	ConsumableSTB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
 
 	__inline unsigned short getExecutionType(const word_t row) const {
-		return this->getEntry(row).get(ConsumableSTB::EXECUTION_TYPE).toShort();
+		return this->getEntry(row)->get(ConsumableSTB::EXECUTION_TYPE).toShort();
 	}
 	__inline unsigned short getNecessaryStatType(const word_t row) const {
-		return this->getEntry(row).get(ConsumableSTB::STAT_TYPE_NEEDED).toShort();
+		return this->getEntry(row)->get(ConsumableSTB::STAT_TYPE_NEEDED).toShort();
 	}
 	__inline unsigned short getNecessaryStatAmount(const word_t row) const {
-		return this->getEntry(row).get(ConsumableSTB::STAT_VALUE_NEEDED).toShort();
+		return this->getEntry(row)->get(ConsumableSTB::STAT_VALUE_NEEDED).toShort();
 	}
 	__inline unsigned short getStatTypeAddition(const word_t row) const {
-		return this->getEntry(row).get(ConsumableSTB::STAT_TYPE_ADD).toShort();
+		return this->getEntry(row)->get(ConsumableSTB::STAT_TYPE_ADD).toShort();
 	}
 	__inline unsigned short getStatValueAddition(const word_t row) const {
-		return this->getEntry(row).get(ConsumableSTB::STAT_VALUE_ADD).toShort();
+		return this->getEntry(row)->get(ConsumableSTB::STAT_VALUE_ADD).toShort();
 	}
 	__inline unsigned short getStatusReference(const word_t row) const {
-		return this->getEntry(row).get(ConsumableSTB::STATUS_STB_REFERENCE).toShort();
+		return this->getEntry(row)->get(ConsumableSTB::STATUS_STB_REFERENCE).toShort();
 	}
 };
 
@@ -560,21 +569,21 @@ private:
 	const static word_t COLUMN_VALUE_INCREASE_FIRST = 0x06;
 	const static word_t COLUMN_VALUE_INCREASE_SECOND = 0x08;
 public:
-	StatusSTB(const String& pathInVFS, const SharedArrayPtr<char> data) : StatusSTB(pathInVFS, data, true) {
+	StatusSTB(const String& pathInVFS, const SharedArrayPtr<char>& data) : StatusSTB(pathInVFS, data, true) {
 	}
-	StatusSTB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+	StatusSTB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
 
 	__inline bool isStatusStackable(const word_t row) const {
-		return this->getEntry(row).get(StatusSTB::COLUMN_IS_STATUS_STACKABLE).toInt() > 0;
+		return this->getEntry(row)->get(StatusSTB::COLUMN_IS_STATUS_STACKABLE).toInt() > 0;
 	}
 	__inline bool isBuff(const word_t row) const {
-		return this->getEntry(row).get(StatusSTB::COLUMN_BUFF_OR_DEBUFF).toInt() == 0;
+		return this->getEntry(row)->get(StatusSTB::COLUMN_BUFF_OR_DEBUFF).toInt() == 0;
 	}
 	__inline unsigned long getFirstValueIncrease(const word_t row) const {
-		return this->getEntry(row).get(StatusSTB::COLUMN_VALUE_INCREASE_FIRST).toInt();
+		return this->getEntry(row)->get(StatusSTB::COLUMN_VALUE_INCREASE_FIRST).toInt();
 	}
 	__inline unsigned long getSecondValueIncrease(const word_t row) const {
-		return this->getEntry(row).get(StatusSTB::COLUMN_VALUE_INCREASE_SECOND).toInt();
+		return this->getEntry(row)->get(StatusSTB::COLUMN_VALUE_INCREASE_SECOND).toInt();
 	}
 };
 
@@ -582,12 +591,12 @@ class AISTB : public STB {
 private:
 	const static word_t PATH_COLUMN = 0x00;
 public:
-	AISTB(const String& pathInVFS, const SharedArrayPtr<char> data) : AISTB(pathInVFS, data, true) {
+	AISTB(const String& pathInVFS, const SharedArrayPtr<char>& data) : AISTB(pathInVFS, data, true) {
 	}
-	AISTB(const String& pathInVFS, const SharedArrayPtr<char> data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
+	AISTB(const String& pathInVFS, const SharedArrayPtr<char>& data, bool applySTL) : STB(pathInVFS, data, applySTL) {}
 
 	__inline String getAIPath(const word_t row) const {
-		return this->getEntry(row).get(AISTB::PATH_COLUMN);
+		return this->getEntry(row)->get(AISTB::PATH_COLUMN);
 	}
 };
 

@@ -53,14 +53,18 @@ ZON::ZON(const String& pathInVFS, const SharedArrayPtr<char>& data) {
 			break;
 		}
 	}
-	ZON::EventInformation eventInfo = this->getEvent("start");
-	if (eventInfo.isValid()) {
-		this->mapCenter.setPosition(eventInfo.getPosition());
+	auto eventInfo = this->getEvent("start");
+	if (eventInfo->isValid()) {
+		this->mapCenter.setPosition(eventInfo->getPosition());
 	}
 }
 
 ZON::~ZON() {
-
+	std::for_each(this->events.begin(), this->events.end(), [](EventInformation* event) {
+		delete event;
+		event = nullptr;
+	});
+	this->events.clear();
 }
 
 void ZON::loadEconomyInfos(BufferedFileReader& bfr) {
@@ -95,7 +99,7 @@ void ZON::loadEventInfos(BufferedFileReader& bfr) {
 		byte_t strLen = bfr.readByte();
 		String eventName = bfr.readString(strLen);
 
-		EventInformation newEvent(eventId, eventName, Position(x, y));
+		EventInformation *newEvent = new EventInformation(eventId, eventName, Position(x, y));
 		this->events.push_back(newEvent);
 	}
 }
@@ -107,11 +111,11 @@ void ZON::loadZoneInfos(BufferedFileReader& bfr) {
 	this->mapCenter.setIfoCenter(centerIfoX, centerIfoY);
 }
 
-ZON::EventInformation ZON::getEvent(const String& name) const {
-	auto resultIterator = std::find_if(this->events.begin(), this->events.end(), [&](ZON::EventInformation eventInfo) {
-		return eventInfo.getName().contentEquals(name);
+const ZON::EventInformation* ZON::getEvent(const String& name) const {
+	auto resultIterator = std::find_if(this->events.begin(), this->events.end(), [&](ZON::EventInformation* eventInfo) {
+		return eventInfo != nullptr && eventInfo->getName().contentEquals(name);
 	});
-	return (resultIterator == this->events.end() ? ZON::EventInformation() : (*resultIterator));
+	return (resultIterator == this->events.end() ? nullptr : (*resultIterator));
 }
 
 
