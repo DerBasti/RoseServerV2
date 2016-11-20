@@ -8,6 +8,7 @@
 #include "..\Common\ROSESocketServer.h"
 #include "FileTypes\STB.h"
 #include "FileTypes\VFS.h"
+#include "FileTypes\AIP.h"
 #include "Map.h"
 
 class WorldServer : public ROSEServer {
@@ -28,6 +29,7 @@ class WorldServer : public ROSEServer {
 
 		std::vector<Map*> maps;
 		std::map<word_t, Telegate*> telegates;
+		std::map<word_t, AIP*> aiData;
 
 		template<class _T> void loadSTB(std::shared_ptr<_T>& ptr, const char *path, bool applySTL = true) {
 			this->logger.info(String("Loading STB: ") + String(path));
@@ -38,14 +40,18 @@ class WorldServer : public ROSEServer {
 			}
 		}
 
+		void loadAI();
 		void loadZoneData();
 		void loadIFOs(Map *currentMap, std::vector<VFS::Entry>& ifoFiles);
 	public:
 		WorldServer(const char* IP, unsigned short port, MYSQL* mysql) : WorldServer(String(IP), port, mysql) {}
 		WorldServer(const String& IP, unsigned short port, MYSQL* mysql);
 
-		NetworkClient* onClientConnected(NetworkInterface *iFace);
+		virtual ~WorldServer();
 
+		void onRequestsFinished();
+		void onClientDisconnect(NetworkInterface* iFace);
+		NetworkClient* onClientConnected(NetworkInterface *iFace);
 
 		__inline void loadEncryption() {
 			GenerateCryptTables(this->getCryptInfo().table, ROSEServer::DEFAULT_ENCRYPTION_KEY);
@@ -63,10 +69,9 @@ class WorldServer : public ROSEServer {
 			return (this->telegates.count(id) > 0 ? this->telegates[id] : nullptr);
 		}
 
-		virtual ~WorldServer();
-
-		void onRequestsFinished();
-		void onClientDisconnect(NetworkInterface* iFace);
+		__inline AIP* getAIData(const word_t id) {
+			return (this->aiData.count(id) > 0 ? this->aiData[id] : nullptr);
+		}
 };
 
 #endif 

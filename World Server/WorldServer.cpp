@@ -30,6 +30,7 @@ WorldServer::WorldServer(const String& IP, unsigned short port, MYSQL* mysql) : 
 	this->loadSTB<STB>(dropFile, "3DDATA\\STB\\ITEM_DROP.STB");
 	this->loadSTB<STB>(warpFile, "3DDATA\\STB\\WARP.STB");
 
+	this->loadAI();
 	this->loadZoneData();
 }
 
@@ -38,10 +39,27 @@ WorldServer::~WorldServer() {
 		delete map;
 		map = nullptr;
 	});
+	std::for_each(this->aiData.begin(), this->aiData.end(), [](std::pair<const word_t, AIP*>& pair) {
+		delete pair.second;
+		pair.second = nullptr;
+	});
+	this->maps.clear();
+	this->aiData.clear();
 }
 
+void WorldServer::loadAI() {
+	this->logger.info("Loading AI...");
+	for (unsigned int i = 0; i < aiFile->getEntryAmount(); i++) {
+		String file = aiFile->getAIPath(i);
+		auto vfsEntry = vfs->getEntry(file);
+		if (vfsEntry.getContent().getSize()>0) {
+			this->aiData[i] = new AIP(vfsEntry.getPathInVFS(), vfsEntry);
+		}
+	}
+}
 
 void WorldServer::loadZoneData() {
+	this->logger.info("Loading zone data...");
 	std::map<word_t, std::vector<VFS::Entry>> zoneFoldersWithIFOFiles;
 	for (unsigned int i = 0; i < zoneFile->getEntryAmount(); i++) {
 		String zoneFileName = zoneFile->getZoneFile(i);
@@ -95,12 +113,13 @@ void WorldServer::onRequestsFinished() {
 		if (map->isActive()) {
 			std::for_each(map->beginEntities(), map->endEntities(), [&](std::pair<const word_t, Entity*>& p) {
 				auto currentEntity = p.second;
-				currentEntity->doAction();
+				currentEntity->movementProc();
 				if (currentEntity->isPlayer()) {
 					this->logger.info("Player's turn.");
 				}
 				if (map->updateEntity(currentEntity)) {
 				}
+				currentEntity->doAction();
 			});
 		}
 	});
@@ -114,5 +133,6 @@ void WorldServer::onClientDisconnect(NetworkInterface* iFace) {
 		if (map != nullptr) {
 			map->removeEntity(player);
 		}
+		player->getPositionInformation()->setMap(nullptr);
 	}
 }

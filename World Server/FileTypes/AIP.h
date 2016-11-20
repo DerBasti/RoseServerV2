@@ -59,14 +59,14 @@ public:
 			this->opCode = *((dword_t*)&dataPointer[0x04]);
 
 			const unsigned long headerOffset = 0x08;
-			if (this->getLength() > headerOffset) {
+			if (this->getLengthWithHeader() > headerOffset) {
 				const unsigned long dataLength = length - headerOffset;
 				this->data = SharedArrayPtr<char>(new char[dataLength], dataLength);
-				memset(this->data.get(), 0x00, this->data.getSize());
 				memcpy(this->data.get(), &dataPointer[headerOffset], this->data.getSize());
 			}
 		}
 		virtual ~DataSet() {
+			std::cout << "Destroying DataSet.\n";
 		}
 		__inline const char* getData() const {
 			return this->data.get();
@@ -87,93 +87,107 @@ public:
 	};
 	class Condition : public DataSet {
 	public:
-		using ConditionFunctionPtr = bool(*)(class NPC* entity, const Condition& condition, InformationTransfer* transfer);
+		using ConditionFunctionPtr = bool(*)(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
 	private:
-		const static ConditionFunctionPtr ConditionMapping[];
 		const static unsigned long OPCODE_START = 0x04000001;
 	public:
+		const static ConditionFunctionPtr ConditionMapping[];
+
 		Condition(const SharedArrayPtr<char>& operationData) : DataSet(operationData) {	}
-		__inline bool isConditionFulfilled(class NPC* entity, const Condition& condition, InformationTransfer* trans) const {
-			AI::Condition::ConditionMapping[condition.getOpCode() - AI::Condition::OPCODE_START](entity, condition, trans);
+
+		virtual ~Condition(){
+			std::cout << "Destroying Condition.\n";
 		}
 
-		static bool FightOrDelay(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasEnoughDamageReceived(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasEnoughTargets(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckDistanceFromSpawn(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckDistanceToTarget(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckAbilityDifference(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckPercentHP(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckRandomPercentage(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool FindNearestSuitableTarget(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasTargetChanged(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckAbility(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasEnoughStats(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasDaytimeArrived(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasBuff(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool IsObjectVarValid(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool IsWorldVarValid(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool IsEconomyValid(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool IsNPCNearby(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckDistanceToOwner(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckZoneTime(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckAreOwnStatsEnough(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasNoOwner(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool HasOwner(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckWorldTime(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckWeekDate(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckMonthDate(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckUnknown(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckSurroundingLevelDifference(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckAIVar(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool IsTargetClanMaster(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
-		static bool CheckClanCreationTime(class NPC* entity, const AI::Condition& condition, InformationTransfer* transfer);
+		__inline bool isConditionFulfilled(class NPC* entity, const AI::Condition* condition, InformationTransfer* trans) const {
+			return AI::Condition::ConditionMapping[condition->getOpCode() - AI::Condition::OPCODE_START](entity, condition, trans);
+		}
+
+		static bool FightOrDelay(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasEnoughDamageReceived(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasEnoughTargets(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckDistanceFromSpawn(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckDistanceToTarget(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckAbilityDifference(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckPercentHP(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckRandomPercentage(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool FindNearestSuitableTarget(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasTargetChanged(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckAbility(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasEnoughStats(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasDaytimeArrived(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasBuff(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool IsObjectVarValid(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool IsWorldVarValid(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool IsEconomyValid(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool IsNPCNearby(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckDistanceToOwner(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckZoneTime(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckAreOwnStatsEnough(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasNoOwner(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool HasOwner(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckWorldTime(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckWeekDate(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckMonthDate(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckUnknown(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckSurroundingLevelDifference(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckAIVar(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool IsTargetClanMaster(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+		static bool CheckClanCreationTime(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
 	};
 	class Action : public DataSet {
 	public:
-		using ActionFunctionPtr = void(*)(class NPC* entity, const Action& action, InformationTransfer* transfer);
+		using ActionFunctionPtr = void(*)(class NPC* entity, const Action* action, InformationTransfer* transfer);
 	private:
-		const static ActionFunctionPtr ActionMapping[];
 		const static unsigned long OPCODE_START = 0x0B000001;
 	public:
+		const static ActionFunctionPtr ActionMapping[];
+
 		Action(const SharedArrayPtr<char>& operationData) : DataSet(operationData) {}
-		__inline void doAction(class NPC* entity, const AI::Action& action, InformationTransfer* trans) const {
-			AI::Action::ActionMapping[action.getOpCode() - AI::Action::OPCODE_START](entity, action, trans);
+
+		virtual ~Action(){
+			std::cout << "Destroying Action.\n";
 		}
 
-		static void StopAction(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetEmote(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SayBubbledMessage(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetRandomPositionFromCurrent(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetRandomPositionFromSpawn(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetRandomPositionFromTarget(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void AttackTarget(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetSpecialAttack(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void MoveToTarget(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void Convert(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SpawnPet(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void CallAlliesForAttack(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void AttackNearestTarget(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void AttackFoundTarget(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void CallEntireFamilyForAttack(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void AttackDesignatedTarget(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void RunAway(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void DropRandomItem(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void CallFewAlliesForAttack(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SpawnPetAtPosition(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void KillNPC(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void CastSkill(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void ChangeNPCVar(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void ChangeGlobalVar(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void ChangeEconomyVar(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SayMessage(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void MoveToOwner(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetQuestTrigger(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void AttackOwnersTarget(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetMapAsPVPArea(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void GiveItemToOwner(class NPC* entity, const Action& action, InformationTransfer* transfer);
-		static void SetAIVar(class NPC* entity, const Action& action, InformationTransfer* transfer);
+		__inline void doAction(class NPC* entity, const AI::Action* action, InformationTransfer* trans) const {
+			AI::Action::ActionMapping[action->getOpCode() - AI::Action::OPCODE_START](entity, action, trans);
+		}
+
+		static void StopAction(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetEmote(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SayBubbledMessage(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetRandomPositionFromCurrent(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetRandomPositionFromSpawn(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetRandomPositionFromTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void AttackTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetSpecialAttack(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void MoveToTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void Convert(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SpawnPet(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void CallAlliesForAttack(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void AttackNearestTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void AttackFoundTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void CallEntireFamilyForAttack(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void AttackDesignatedTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void RunAway(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void DropRandomItem(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void CallFewAlliesForAttack(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SpawnPetAtPosition(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void KillNPC(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void CastSkill(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void ChangeNPCVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void ChangeGlobalVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void ChangeEconomyVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SayMessage(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void MoveToOwner(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetQuestTrigger(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void AttackOwnersTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetMapAsPVPArea(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void GiveItemToOwner(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetAIVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
 	};
+
+	static void doRoutine(class NPC*, const byte_t, class AIP*);
 };
 
 
@@ -183,30 +197,61 @@ public:
 	public:
 		class Record {
 		private:
-			std::vector<AI::Condition> conditions;
-			std::vector<AI::Action> actions;
+			std::vector<AI::Condition*> conditions;
+			std::vector<AI::Action*> actions;
 		public:
 			Record() {}
-			virtual ~Record() {}
+			virtual ~Record() {
+				std::for_each(conditions.begin(), conditions.end(), [](AI::Condition* cond) {
+					delete cond;
+					cond = nullptr;
+				});
+				conditions.clear();
+
+				std::for_each(actions.begin(), actions.end(), [](AI::Action* action) {
+					delete action;
+					action = nullptr;
+				});
+				actions.clear();
+			}
 
 			__inline void addCondition(const SharedArrayPtr<char>& newData) {
-				this->conditions.push_back(AI::Condition(newData));
+				this->conditions.push_back(new AI::Condition(newData));
 			}
 			__inline void addAction(const SharedArrayPtr<char>& newData) {
-				this->actions.push_back(AI::Action(newData));
+				this->actions.push_back(new AI::Action(newData));
+			}
+
+			__inline AI::Action* getAction(const word_t id) const {
+				return (id < this->actions.size() ? this->actions[id] : nullptr);
+			}
+			__inline AI::Condition* getCondition(const word_t id) const {
+				return (id < this->conditions.size() ? this->conditions[id] : nullptr);
+			}
+			__inline dword_t getConditionAmount() const {
+				return this->conditions.size();
+			}
+			__inline dword_t getActionAmount() const {
+				return this->actions.size();
 			}
 		};
 	private:
-		std::vector<AIP::State::Record> records;
+		std::vector<AIP::State::Record*> records;
 	public:
 		State() {}
-		virtual ~State() {}
+		virtual ~State() {
+			std::for_each(this->records.begin(), this->records.end(), [](AIP::State::Record* record) {
+				delete record;
+				record = nullptr;
+			});
+			this->records.clear();
+		}
 
-		__inline void addRecord(const AIP::State::Record& newRecord) {
+		__inline void addRecord(AIP::State::Record* newRecord) {
 			this->records.push_back(std::move(newRecord));
 		}
-		__inline AIP::State::Record getRecord(const unsigned long id) const {
-			return this->records[id];
+		__inline AIP::State::Record* getRecord(const unsigned long id) const {
+			return (id < this->records.size() ? this->records[id] : nullptr);
 		}
 		__inline unsigned long getRecordAmount() const {
 			return static_cast<unsigned long>(this->records.size());
@@ -218,33 +263,45 @@ private:
 	unsigned long damageAmountTrigger;
 	String filePath;
 
-	const static unsigned long DEFAULT_STATE_AMOUNT = 0x06;
 
-	std::vector<AIP::State> states;
+	std::vector<AIP::State*> states;
 public:
+	class StateTypes {
+		private:
+			StateTypes() {}
+			~StateTypes() {}
+		public:
+			const static byte_t SPAWNED = 0x00;
+			const static byte_t IDLING = 0x01;
+			const static byte_t ATTACKING = 0x02;
+			const static byte_t DAMAGE = 0x03;
+			const static byte_t ENEMY_DIED = 0x04;
+			const static byte_t DEATH = 0x05;
+			const static byte_t DEFAULT_STATE_AMOUNT = 0x06;
+	};
 	AIP() : AIP(nullptr) {}
 	AIP(const char *pathInVFS) : AIP(String(pathInVFS)) {}
 	AIP(const String& pathInVFS) : AIP(pathInVFS, VFS::get()->getEntry(pathInVFS)) {}
-	AIP(const String& pathInVFS, const VFS::Entry entry) : AIP(pathInVFS, entry.getContent()) {}
-	AIP(const String& pathInVFS, const SharedArrayPtr<char> data) {
+	AIP(const String& pathInVFS, const VFS::Entry& entry) : AIP(pathInVFS, entry.getContent()) {}
+	AIP(const String& pathInVFS, const SharedArrayPtr<char>& data) {
 		this->filePath = pathInVFS;
 		BufferedFileReader bfr(data, data.getSize());
 		unsigned long triggerCount = bfr.readDWord();
-		if (triggerCount == AIP::DEFAULT_STATE_AMOUNT) {
-			this->checkInterval = bfr.readDWord();
+		if (triggerCount == AIP::StateTypes::DEFAULT_STATE_AMOUNT) {
+			this->checkInterval = bfr.readDWord()*1000;
 			this->damageAmountTrigger = bfr.readDWord();
 
 			unsigned long tempLen = bfr.readDWord();
 			String tempString = bfr.readString(tempLen);
 
-			for (unsigned long i = 0; i < AIP::DEFAULT_STATE_AMOUNT; i++) {
-				AIP::State currentState;
+			for (unsigned long i = 0; i < AIP::StateTypes::DEFAULT_STATE_AMOUNT; i++) {
+				AIP::State* currentState = new AIP::State();
 				bfr.setCaret(bfr.getCaret() + 0x20); //Fixed string size of 32 bytes
 
 				dword_t recordAmount = bfr.readDWord();
 				for (unsigned int j = 0; j < recordAmount; j++) {
 					bfr.setCaret(bfr.getCaret() + 0x20);
-					AIP::State::Record newRecord;
+					AIP::State::Record* newRecord = new AIP::State::Record();
 
 					typedef void (AIP::State::Record::*AddSubrecordFunction)(const SharedArrayPtr<char>& newData);
 					std::function<void(AddSubrecordFunction)> recordReader = [&](AddSubrecordFunction function) -> void {
@@ -253,19 +310,35 @@ public:
 							unsigned long length = bfr.readDWord();
 							bfr.setCaret(bfr.getCaret() - sizeof(dword_t));
 							SharedArrayPtr<char> data = bfr.readBinary(length);
-							(newRecord.*function)(data);
+							(newRecord->*function)(data);
 						}
 					};
 
 					recordReader(&AIP::State::Record::addCondition);
 					recordReader(&AIP::State::Record::addAction);
 
-					currentState.addRecord(newRecord);
+					currentState->addRecord(newRecord);
 				}
 
 				this->states.push_back(currentState);
 			}
 		}
+	}
+	virtual ~AIP() {
+		std::for_each(this->states.begin(), this->states.end(), [](AIP::State* state) {
+			delete state;
+			state = nullptr;
+		});
+		this->states.clear();
+	}
+	__inline unsigned long getCheckInterval() const {
+		return this->checkInterval;
+	}
+	__inline unsigned long getDamageTriggerAmount() const {
+		return this->damageAmountTrigger;
+	}
+	__inline AIP::State* getState(const byte_t state) {
+		return (state < AIP::StateTypes::DEFAULT_STATE_AMOUNT ? this->states[state] : nullptr);
 	}
 };
 

@@ -21,9 +21,28 @@ NPC::NPC(const word_t npcId, const byte_t mapId, const Position& pos, const floa
 	}
 	this->dir = direction;
 
+	word_t aiFileId = stb->getAIFileId(this->getTypeId());
+	this->ai = new AIHelper(server->getAIData(aiFileId));
+
 	Stats* stats = this->getStats();
 	stats->setAttackPower(stb->getAttackpower(this->getTypeId()));
 	stats->setAttackRange(stb->getAttackrange(this->getTypeId()));
 	stats->setMaxHP(stb->getHPperLevel(this->getTypeId()) * stb->getLevel(this->getTypeId()));
 	stats->setHP(stats->getHP());
+}
+
+NPC::~NPC() {
+	delete this->ai;
+	this->ai = nullptr;
+}
+
+void NPC::doAction() {
+	if (this->getPositionInformation()->isIdling()) {
+		if (this->getAI()->isAIReady()) {
+			AI::doRoutine(this, AIP::StateTypes::IDLING, this->getAI()->getData());
+		}
+	}
+	else {
+		this->getAI()->updateTimer();
+	}
 }

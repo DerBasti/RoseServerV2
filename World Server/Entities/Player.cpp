@@ -306,16 +306,7 @@ bool Player::pakMovement() {
 
 	this->getPositionInformation()->setDestination(Position(newX, newY));
 
-	Packet pak(PacketID::World::Response::MOVEMENT_PLAYER);
-	pak.addWord(this->getBasicInformation()->getLocalId());
-	pak.addWord(0x00);//pak.addWord(target != nullptr ? target->getLocalId() : 0x00);
-	pak.addWord(this->getStats()->getMovementSpeed());
-	pak.addFloat(newX);
-	pak.addFloat(newY);
-	pak.addWord(0xcdcd); //Z
-
-	//TODO: SendToVisible
-	return this->sendPacket(pak);
+	return true;
 }
 
 bool Player::pakTeleport() {
@@ -342,7 +333,7 @@ bool Player::pakLocalChat() {
 	Packet pak(PacketID::World::Response::LOCAL_CHAT);
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addString(msg);
-	return this->sendPacket(pak); //TODO: To Visible
+	return this->sendToVisible(pak);
 }
 
 bool Player::sendTeleport(const byte_t mapId, const Position& pos) {

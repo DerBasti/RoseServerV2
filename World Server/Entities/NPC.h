@@ -6,6 +6,8 @@
 #endif
 
 #include "Entity.h"
+#include "..\FileTypes\AIP.h"
+#include "..\..\Common\BasicTypes\RingCounter.h"
 
 class NPC : public Entity {
 private:
@@ -13,21 +15,57 @@ private:
 protected:
 	word_t typeId;
 	String name;
+
+	class AIHelper {
+		private:
+			StoppableClock timer;
+			AIP* data;
+			RingCounter currentRecordId[AIP::StateTypes::DEFAULT_STATE_AMOUNT];
+		public:
+			AIHelper(AIP* ptr) {
+				this->data = ptr;
+				for (unsigned int i = 0; i < AIP::StateTypes::DEFAULT_STATE_AMOUNT; i++) {
+					currentRecordId[i] = RingCounter(this->data == nullptr ? 0x00 : this->data->getState(i)->getRecordAmount());
+				}
+				this->timer.start();
+			}
+			__inline AIP* getData() const {
+				return this->data;
+			}
+			__inline bool isAIReady() const {
+				return this->data != nullptr && this->timer.getDuration() >= this->data->getCheckInterval();
+			}
+			__inline void updateTimer() {
+				this->timer.timeLap();
+			}
+			__inline RingCounter& getCurrentRecordId(const byte_t blockId) {
+				return this->currentRecordId[blockId];
+			}
+			__inline void advanceToNextRecord(const byte_t blockId) {
+				this->currentRecordId[blockId]++;
+			}
+	};
+
+	AIHelper* ai;
+
 public:
 	
 	NPC() {}
 	NPC(const word_t npcId, const byte_t mapId, const Position& pos, const float direction);
-	virtual ~NPC() {}
+	virtual ~NPC();
 
 	__inline word_t getTypeId() const {
 		return this->typeId;
 	}
+	virtual void doAction();
 
 	__inline virtual bool isNPC() const { return true; }
 	__inline float getDirection() const {
 		return this->dir;
 	}
-
+	__inline AIHelper* getAI() const {
+		return this->ai;
+	}
 };
 
 #endif //__ROSE_NPC__

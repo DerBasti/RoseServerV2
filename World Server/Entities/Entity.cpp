@@ -1,4 +1,6 @@
 #include "Entity.h"
+#include "Player.h"
+#include "..\..\Common\PacketIDs.h"
 
 Entity::~Entity() {
 	//TODO: Visuality on death
@@ -67,4 +69,29 @@ void Visuality::forceClear() {
 		this->removeSector(sector);
 	});
 	this->visibleSectors.clear();
+}
+
+bool Entity::sendToVisible(const Packet& pak) {
+	bool result = true;
+	auto visibleSectors = this->getVisuality()->getVisibleSectors();
+	std::for_each(visibleSectors.begin(), visibleSectors.end(), [&](std::pair<const word_t, Map::Sector*> p) {
+		Map::Sector *sector = p.second;
+		std::for_each(sector->beginPlayer(), sector->endPlayer(), [&](std::pair<const word_t, Entity*> otherPair) {
+			Player *player = static_cast<Player*>(otherPair.second);
+			result &= player->sendPacket(pak);
+		});
+	});
+	return result;
+}
+
+bool Entity::sendNewDestinationVisually() {
+	auto destination = this->getPositionInformation()->getDestination();
+	Packet pak(PacketID::World::Response::MOVEMENT_PLAYER);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addWord(0x00);//pak.addWord(target != nullptr ? target->getLocalId() : 0x00);
+	pak.addWord(this->getStats()->getMovementSpeed());
+	pak.addFloat(destination.getX());
+	pak.addFloat(destination.getY());
+	pak.addWord(0xcdcd); //Z
+	return this->sendToVisible(pak);
 }

@@ -51,7 +51,7 @@ public:
 class PositionInformation {
 private:
 	Position current;
-	Position dest;
+	Observable<Position> dest;
 	StoppableClock lastCheckTime;
 	Map* map;
 public:
@@ -81,10 +81,16 @@ public:
 		this->current = p;
 	}
 	__inline Position getDestination() const {
-		return this->dest;
+		return this->dest.getValue();
+	}
+	__inline void setOnDestinationAssigned(std::function<void(Position)> func) {
+		this->dest.setOnNewValueAssigned(func);
 	}
 	__inline void setDestination(const Position& p) {
 		this->dest = p;
+	}
+	__inline bool isIdling() const {
+		return this->getCurrent() == this->getDestination();
 	}
 };
 
@@ -243,6 +249,10 @@ public:
 	}
 	void update(std::map<word_t, Map::Sector*> newVisibleSectors);
 	void forceClear();
+
+	__inline std::map<word_t, Map::Sector*> getVisibleSectors() const {
+		return this->visibleSectors;
+	}
 };
 
 class Entity {
@@ -252,7 +262,7 @@ private:
 	Stats stats;
 	Visuality visuality;
 protected:
-	void movementProc();
+	bool sendToVisible(const Packet& pak);
 	virtual bool sendEntityVisuallyAdded(Entity* entity) {
 		return true;
 	}
@@ -263,6 +273,7 @@ protected:
 	virtual bool sendEntityVisuallyRemoved(Entity* entity) {
 		return true;
 	}
+	virtual bool sendNewDestinationVisually();
 public:
 	Entity() {
 		auto onNewSectorFunc = [&](Map::Sector* sector) {
@@ -283,6 +294,9 @@ public:
 				}
 			});
 		};
+		this->getPositionInformation()->setOnDestinationAssigned([this](Position old) {
+			this->sendNewDestinationVisually();
+		});
 		this->getVisuality()->setOnNewSector(onNewSectorFunc);
 		this->getVisuality()->setOnRemoveSector(onRemoveSectorFunc);
 	}
@@ -301,8 +315,9 @@ public:
 		return &this->visuality;
 	}
 
+	void movementProc();
+
 	virtual void doAction() {
-		this->movementProc();
 	}
 
 	virtual bool isPlayer() const { return false; }
