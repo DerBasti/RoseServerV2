@@ -79,9 +79,13 @@ struct DataInterpreter {
 		this->data = data;
 		this->caret = 0;
 	}
+	virtual ~DataInterpreter() {
+		this->data = nullptr;
+		this->caret = this->length = 0x00;
+	}
 	template<class _X = _T>
 	__inline _X get() {
-		_X currentData = *((_X*)&this->data[this->caret]);
+		_X currentData = *((_X*)(this->data + this->caret));
 		this->caret += sizeof(_X);
 		return currentData;
 	}
