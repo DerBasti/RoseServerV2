@@ -1,22 +1,21 @@
 #include "Player.h"
-#include "..\..\Common\PacketIDs.h"
 #include "..\WorldServer.h"
 #include "Monster.h"
 
-FunctionBinder<Player, unsigned long, bool(Player::*)()> Player::PACKET_FUNCTIONS = {
-	{ PacketID::World::Request::GET_ID, &Player::pakAssignId },
-	{ PacketID::World::Request::IDENFITY, &Player::pakIdentify },
-	{ PacketID::World::Request::MOVEMENT_PLAYER, &Player::pakMovement },
-	{ PacketID::World::Request::TELEGATE, &Player::pakTeleport },
-	{ PacketID::World::Request::LOCAL_CHAT, &Player::pakLocalChat }
-};
 
 StaticFunctionBinder < String, void(*)(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens), void*> GM_FUNCTIONS = {
 	{ String("/tele"), &GMService::teleport }
 };
 
 Player::Player(NetworkInterface* iFace, const CryptInfo& cryptInfo) : ROSESocketClient(iFace, cryptInfo) {
-	
+	PlayerStance *stance = new PlayerStance();
+
+	stance->setOnStanceChanged([&](byte_t) {
+		this->updateMovementSpeed();
+		this->sendCurrentStance();
+	});
+
+	this->getStats()->setStance(stance);
 };
 
 Player::~Player() {
@@ -49,7 +48,7 @@ bool Player::loadCharacterInformation() {
 	}
 	auto charInfoRow = charInfoResult->getFirst();
 	this->getCharacter()->setName(charInfoRow.get(0x00));
-	this->getCharacter()->setLevel(charInfoRow.get(0x01).toShort());
+	this->getStats()->setLevel(charInfoRow.get(0x01).toShort());
 	this->getCharacter()->setExperience(charInfoRow.get(0x02).toInt());
 	this->getCharacter()->setJobId(charInfoRow.get(0x03).toShort());
 	this->getCharacter()->getAppearance()->setFaceStyle(charInfoRow.get(0x04).toShort());
@@ -165,7 +164,7 @@ bool Player::sendPlayerInformation() {
 	pak.addWord(this->getStats()->getMP());
 
 	pak.addDWord(this->getCharacter()->getExperience());
-	pak.addWord(this->getCharacter()->getLevel());
+	pak.addWord(this->getStats()->getLevel());
 	pak.addWord(this->getCharacter()->getStatPoints());
 	pak.addWord(this->getCharacter()->getSkillPoints());
 	pak.addByte(0x64); //BodySize
@@ -255,6 +254,7 @@ bool Player::sendQuestData() {
 }
 
 bool Player::pakAssignId() {
+	this->updateStats();
 	this->getPositionInformation()->getMap()->addEntity(this);
 
 	Packet pak(PacketID::World::Response::ASSIGN_ID);
@@ -281,7 +281,7 @@ bool Player::pakAssignId() {
 	pak.addDWord(0x00);
 	this->getBasicInformation()->setIngameFlag(true);
 
-	return this->sendPacket(pak) && this->sendWeightPercentage();
+	return this->sendPacket(pak) && this->sendWeightPercentage() && this->sendCurrentStance();
 }
 
 bool Player::sendWeightPercentage() {
@@ -301,8 +301,11 @@ bool Player::pakIdentify() {
 }
 
 bool Player::pakMovement() {
+	word_t targetId = this->getPacket().getWord(0x00);
 	float newX = this->getPacket().getFloat(0x02);
 	float newY = this->getPacket().getFloat(0x06);
+
+	this->getCombatInformation()->setTarget(this->getVisuality()->find(targetId));
 
 	this->getPositionInformation()->setDestination(Position(newX, newY));
 
@@ -334,6 +337,30 @@ bool Player::pakLocalChat() {
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addString(msg);
 	return this->sendToVisible(pak);
+}
+
+bool Player::pakChangeStance() {
+	byte_t caseId = this->getPacket().getByte(0x00);
+	Stance* stance = this->getStats()->getStance();
+	switch (caseId) {
+	case 0x00:
+		if (stance->isWalking()) {
+			stance->setRunningStance();
+		}
+		else if (stance->isRunning()) {
+			stance->setWalkingStance();
+		}
+	break;
+	case 0x01:
+		if (stance->isSitting()) {
+			stance->setRunningStance();
+		}
+		else if (!stance->isDriving() && !stance->isSitting()) {
+			stance->setSittingStance();
+		}
+	}
+ 
+	return this->sendCurrentStance();
 }
 
 bool Player::sendTeleport(const byte_t mapId, const Position& pos) {
@@ -370,8 +397,8 @@ bool Player::sendEntityVisuallyAdded(Entity* entity) {
 	pak.addPosition(entity->getPositionInformation()->getCurrent());
 	pak.addPosition(entity->getPositionInformation()->getDestination());
 	pak.addWord(0x00); //What is he currently doing?
-	pak.addWord(0x00); //Target
-	pak.addByte(0x01); //Stance
+	pak.addWord(this->getCombatInformation()->getTargetId()); //Target
+	pak.addByte(this->getStats()->getStance()->getId()); //Stance
 	pak.addDWord(this->getStats()->getHP());
 	pak.addDWord(this->isMonster() ? 0x100 : 0x00); //Team = who is the enemy?
 	pak.addDWord(0x00); //Buffs

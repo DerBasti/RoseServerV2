@@ -118,18 +118,41 @@ bool AI::Condition::HasEnoughDamageReceived(NPC* entity, const AI::Condition* co
 	return dmgReceived >= dmgAmountNecessary;
 }
 
-bool AI::Condition::HasEnoughTargets(NPC* entity, const AI::Condition* condition, AI::InformationTransfer* transfer) {
+bool AI::Condition::HasEnoughTargets(NPC* npc, const AI::Condition* condition, AI::InformationTransfer* transfer) {
 	DataInterpreter<const char> reader(condition->getData(), condition->getLength());
 	dword_t distance = reader.get<dword_t>();
-	word_t isAlliedEntity = reader.get<word_t>();
+	bool needsAlliedEntity = reader.get<word_t>() > 0;
 	word_t levelMin = reader.get<word_t>();
 	word_t levelMax = reader.get<word_t>();
-	word_t necessaryAmuont = reader.get<word_t>();
+	word_t necessaryAmount = reader.get<word_t>();
 
 	float nearest = 999999.0f;
+	word_t foundAmount = 0x00;
 
 	Entity* target = nullptr;
-	//....todo
+	auto visibleSectors = npc->getVisuality()->getVisibleSectors();
+	for (auto sectorIt = visibleSectors.begin(); sectorIt != visibleSectors.end(); sectorIt++) {
+		Map::Sector* sector = sectorIt->second;
+		for (auto it = sector->beginEntities(); it != sector->endEntities(); it++) {
+			Entity* currentEntity = it->second;
+			if (!currentEntity->getBasicInformation()->isIngame()) {
+				continue;
+			}
+			short levelDiff = currentEntity->getStats()->getLevel() - npc->getStats()->getLevel();
+			if (levelMin >= levelDiff && levelDiff <= levelMax && currentEntity->isEnemyOf(npc) != needsAlliedEntity) {
+				foundAmount++;
+				float distance = npc->getPositionInformation()->getCurrent().distanceTo(currentEntity->getPositionInformation()->getCurrent());
+				if (distance <= nearest) {
+					nearest = distance;
+					target = currentEntity;
+				}
+				if (foundAmount >= necessaryAmount) {
+					transfer->setFoundTarget(target);
+					return true;
+				}
+			}
+		}
+	}
 	return false;
 }
 
@@ -145,6 +168,9 @@ bool AI::Condition::CheckDistanceFromSpawn(NPC* entity, const AI::Condition* con
 }
 
 bool AI::Condition::CheckDistanceToTarget(NPC* entity, const AI::Condition* condition, AI::InformationTransfer* transfer) {
+	if (entity->getCombatInformation()->getTarget() == nullptr) {
+		return false;
+	}
 	return false;
 }
 
@@ -153,7 +179,11 @@ bool AI::Condition::CheckAbilityDifference(NPC* entity, const AI::Condition* con
 }
 
 bool AI::Condition::CheckPercentHP(NPC* entity, const AI::Condition* condition, AI::InformationTransfer* transfer) {
-	return false;
+	DataInterpreter<const char> reader(condition->getData(), condition->getLength());
+	dword_t wantedPercentage = reader.get<dword_t>();
+	byte_t operation = reader.get<byte_t>() > 0 ? OperationService::OPERATION_BIGGER_EQUAL : OperationService::OPERATION_SMALLER_EQUAL;
+	byte_t percentHealth = static_cast<byte_t>(entity->getStats()->getHP() * 100 / entity->getStats()->getMaxHP());
+	return OperationService::checkOperation(percentHealth, wantedPercentage, operation);
 }
 
 bool AI::Condition::CheckRandomPercentage(NPC* entity, const AI::Condition* condition, AI::InformationTransfer* transfer) {
@@ -219,7 +249,7 @@ bool AI::Condition::CheckAreOwnStatsEnough(NPC* entity, const AI::Condition* con
 }
 
 bool AI::Condition::HasNoOwner(NPC* entity, const AI::Condition* condition, AI::InformationTransfer* transfer) {
-	return false;
+	return true;
 
 }
 
@@ -271,8 +301,13 @@ bool AI::Condition::CheckClanCreationTime(NPC* entity, const AI::Condition* cond
 void AI::Action::StopAction(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
 	entity->getPositionInformation()->setDestination(entity->getPositionInformation()->getCurrent());
 }
-void AI::Action::SetEmote(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SayBubbledMessage(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
+
+void AI::Action::SetEmote(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SayBubbledMessage(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
 void AI::Action::SetRandomPositionFromCurrent(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
 	DataInterpreter<const char> reader(action->getData(), action->getLength());
 	float distance = static_cast<float>(reader.get<dword_t>() * 100) * 0.66f;
@@ -280,8 +315,10 @@ void AI::Action::SetRandomPositionFromCurrent(NPC* entity, const AI::Action* act
 		Position(Randomize::GetFloat(-distance, distance), Randomize::GetFloat(-distance, distance));
 
 	byte_t stance = reader.get<byte_t>();
+	entity->getStats()->getStance()->setId(stance);
 	entity->getPositionInformation()->setDestination(newDestination);
 }
+
 void AI::Action::SetRandomPositionFromSpawn(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
 	if (!entity->isMonster()) {
 		return;
@@ -293,33 +330,90 @@ void AI::Action::SetRandomPositionFromSpawn(NPC* entity, const AI::Action* actio
 		Position(Randomize::GetFloat(-distance, distance), Randomize::GetFloat(-distance, distance));
 
 	byte_t stance = reader.get<byte_t>();
+	entity->getStats()->getStance()->setId(stance);
 	entity->getPositionInformation()->setDestination(newDestination);
 }
 
-void AI::Action::SetRandomPositionFromTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::AttackTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SetSpecialAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::MoveToTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::Convert(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SpawnPet(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::CallAlliesForAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::AttackNearestTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::AttackFoundTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::CallEntireFamilyForAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::AttackDesignatedTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::RunAway(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::DropRandomItem(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::CallFewAlliesForAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SpawnPetAtPosition(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::KillNPC(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::CastSkill(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::ChangeNPCVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::ChangeGlobalVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::ChangeEconomyVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SayMessage(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::MoveToOwner(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SetQuestTrigger(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::AttackOwnersTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SetMapAsPVPArea(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::GiveItemToOwner(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
-void AI::Action::SetAIVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { }
+void AI::Action::SetRandomPositionFromTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+
+void AI::Action::AttackTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+
+void AI::Action::SetSpecialAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::MoveToTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::Convert(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SpawnPet(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::CallAlliesForAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::AttackNearestTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::AttackFoundTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::CallEntireFamilyForAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::AttackDesignatedTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::RunAway(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::DropRandomItem(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::CallFewAlliesForAttack(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SpawnPetAtPosition(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::KillNPC(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::CastSkill(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::ChangeNPCVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::ChangeGlobalVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::ChangeEconomyVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SayMessage(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::MoveToOwner(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SetQuestTrigger(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::AttackOwnersTarget(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SetMapAsPVPArea(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::GiveItemToOwner(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SetAIVar(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}

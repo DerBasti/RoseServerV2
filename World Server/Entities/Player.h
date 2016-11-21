@@ -256,7 +256,6 @@ private:
 	String name;
 	dword_t id;
 	dword_t experience;
-	word_t level;
 	word_t jobId;
 	word_t statPoints;
 	word_t skillPoints;
@@ -287,12 +286,6 @@ public:
 	}
 	__inline void setExperience(const dword_t exp) {
 		this->experience = exp;
-	}
-	__inline word_t getLevel() const {
-		return this->level;
-	}
-	__inline void setLevel(const word_t level) {
-		this->level = level;
 	}
 	__inline word_t getJobId() const {
 		return this->jobId;
@@ -331,11 +324,105 @@ public:
 };
 
 class Player : public Entity, public ROSESocketClient {
+public:
+	class AbilityTypes {
+	private:
+		AbilityTypes() {}
+		~AbilityTypes() {}
+	public:
+		const static byte_t BIRTHSTONE = 0x03;
+		const static byte_t JOB = 0x04;
+		const static byte_t FACTION = 0x05;
+		const static byte_t RANKING = 0x06;
+		const static byte_t REPUTATION = 0x07;
+		const static byte_t FACE = 0x08;
+		const static byte_t HAIR = 0x09;
+		const static byte_t STRENGTH = 0x0A;
+		const static byte_t DEXTERITY = 0x0B;
+		const static byte_t INTELLIGENCE = 0x0C;
+		const static byte_t CONCENTRATION = 0x0D;
+		const static byte_t CHARM = 0x0E;
+		const static byte_t SENSIBILITY = 0x0F;
+		const static byte_t CURRENT_HP = 0x10;
+		const static byte_t CURRENT_MP = 0x11;
+		const static byte_t ATTACK_POWER = 0x12;
+		const static byte_t PHYISCAL_DEFENSE = 0x13;
+		const static byte_t ACCURACY = 0x14;
+		const static byte_t MAGICAL_DEFENSE = 0x15;
+		const static byte_t DODGE_RATE = 0x16;
+		const static byte_t MOVEMENT_SPEED = 0x17;
+		const static byte_t ATTACK_SPEED = 0x18;
+		const static byte_t INVENTORY_CAPACITY = 0x19;
+		const static byte_t CRITICAL_RATE = 0x1A;
+		const static byte_t HP_RECOVERY = 0x1B;
+		const static byte_t MP_RECOVERY = 0x1C;
+		const static byte_t MP_CONSUMPTION = 0x1D;
+		const static byte_t EXP_RATE = 0x1E;
+		const static byte_t LEVEL = 0x1F;
+		const static byte_t POINT = 0x20;
+		const static byte_t TENDENCY = 0x21;
+		const static byte_t PK_LEVEL = 0x22;
+		const static byte_t HEAD_SIZE = 0x23;
+		const static byte_t BODY_SIZE = 0x24;
+		const static byte_t SKILL_POINTS = 0x25;
+		const static byte_t MAX_HP = 0x26;
+		const static byte_t MAX_MP = 0x27;
+		const static byte_t MONEY = 0x28;
+		const static byte_t UNARMED_ATTACKPOWER = 0x29;
+		const static byte_t ONEHANDED_ATTACKPOWER = 0x2A;
+		const static byte_t TWOHANDED_ATTACKPOWER = 0x2B;
+		const static byte_t BOW_ATTACKPOWER = 0x2C;
+		const static byte_t GUN_ATTACKPOWER = 0x2D;
+		const static byte_t MAGICWEAPONG_ATTACKPOWER = 0x2E;
+		const static byte_t CROSSBOW_ATTACKPOWER = 0x2F;
+		const static byte_t COMBATWEAPON_ATTACKPOWER = 0x30;
+		const static byte_t BOW_ATTACKSPEED = 0x31;
+		const static byte_t GUN_ATTACKSPEED = 0x32;
+		const static byte_t COMBATWEAPON_ATTACKSPEED = 0x33;
+		const static byte_t MOVEMENT_SPEED_OTHER = 0x34;
+		const static byte_t PHYSICAL_DEFENSE_OTHER = 0x35;
+		const static byte_t MAX_HP_OTHER = 0x36;
+		const static byte_t MAX_MP_OTHER = 0x37;
+		const static byte_t HP_RECOVERY_OTHER = 0x38;
+		const static byte_t MP_RECOVERY_OTHER = 0x39;
+		const static byte_t BAGPACK_CAPACITY = 0x3A;
+		const static byte_t SALES_DISCOUNT = 0x3B;
+		const static byte_t SALES_PREMIUM = 0x3C;
+		const static byte_t MP_COST_REDUCTION = 0x3D;
+		const static byte_t SUMMON_GAUGE_INCREASE = 0x3E;
+		const static byte_t ITEM_DROP_RATE = 0x3F;
+
+		const static byte_t PLANET_REQUIREMENT = 0x4B;
+		const static byte_t STAMINA = 0x4C;
+
+		const static byte_t NO_STORAGE_CHARGE = 0x5E;
+		const static byte_t STORAGE_EXPANSION = 0x5F;
+		const static byte_t PERSONAL_SHOP_REMODELLING = 0x60;
+		const static byte_t CART_GAUGE = 0x61;
+	};
 private:
 	static FunctionBinder<Player, unsigned long, bool(Player::*)()> PACKET_FUNCTIONS;
 
 	Account accountInfo;
 	Character character;
+
+	void updateAttributes();
+
+	void updateStrength();
+	void updateDexterity();
+	void updateIntelligence();
+	void updateConcentration();
+	void updateCharm();
+	void updateSensibility();
+
+	void updateAttackPower();
+	void updateMaxHP();
+	void updateMaxMP();
+	void updatePhysicalDefense();
+	void updateMagicalDefense();
+	void updateMovementSpeed();
+	void updateAttackSpeed();
+	void updateAttackRange();
 
 	bool loadEntireCharacter();
 	bool loadCharacterInformation();
@@ -362,11 +449,15 @@ private:
 	bool pakTeleport();
 	bool pakMovement();
 	bool pakLocalChat();
+	bool pakChangeStance();
 public:
 	Player(NetworkInterface* IFace, const CryptInfo& cryptInfo);
 	virtual ~Player();
 
 	bool handlePacket();
+	bool sendTeleport(const byte_t mapId, const Position& pos);
+
+	virtual void updateStats();
 
 	__inline Account* getAccountInfo() {
 		return &this->accountInfo;
@@ -374,9 +465,7 @@ public:
 	__inline Character* getCharacter() {
 		return &this->character;
 	}
-
 	__inline bool isPlayer() const { return true; }
-	bool sendTeleport(const byte_t mapId, const Position& pos);
 };
 
 class GMService {

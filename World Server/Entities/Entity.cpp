@@ -6,6 +6,17 @@ Entity::~Entity() {
 	//TODO: Visuality on death
 }
 
+void Entity::updateStats() {
+	this->updateAttackPower();
+	this->updateMaxHP();
+	this->updateMaxMP();
+	this->updatePhysicalDefense();
+	this->updateMagicalDefense();
+	this->updateMovementSpeed();
+	this->updateAttackSpeed();
+	this->updateAttackRange();
+};
+
 void Entity::movementProc() {
 	Position current = this->getPositionInformation()->getCurrent();
 	const Position dest = this->getPositionInformation()->getDestination();
@@ -63,12 +74,37 @@ void Visuality::update(std::map<word_t, Map::Sector*> newSectors) {
 	});
 }
 
+Entity* Visuality::find(const word_t localId) {
+	for(auto it = this->visibleSectors.begin();it != this->visibleSectors.end();it++) {
+		auto pair = *it;
+		Map::Sector* sector = pair.second;
+		for (auto entityIt = sector->beginEntities(); entityIt != sector->endEntities(); entityIt++) {
+			auto entity = entityIt->second;
+			if (entity->getBasicInformation()->getLocalId() == localId) {
+				return entity;
+			}
+		}
+	}
+	return nullptr;
+}
+
 void Visuality::forceClear() {
 	std::for_each(this->visibleSectors.begin(), this->visibleSectors.end(), [&](std::pair<const word_t, Map::Sector*> pair) {
 		Map::Sector* sector = pair.second;
 		this->removeSector(sector);
 	});
 	this->visibleSectors.clear();
+}
+
+__inline Entity* Combat::getTarget() const {
+	return this->target;
+}
+void Combat::setTarget(Entity* target) {
+	this->target = target;
+}
+
+__inline word_t Combat::getTargetId() const {
+	return (this->getTarget() == nullptr ? 0x00 : this->getTarget()->getBasicInformation()->getLocalId());
 }
 
 bool Entity::sendToVisible(const Packet& pak) {
@@ -88,10 +124,23 @@ bool Entity::sendNewDestinationVisually() {
 	auto destination = this->getPositionInformation()->getDestination();
 	Packet pak(PacketID::World::Response::MOVEMENT_PLAYER);
 	pak.addWord(this->getBasicInformation()->getLocalId());
-	pak.addWord(0x00);//pak.addWord(target != nullptr ? target->getLocalId() : 0x00);
+	pak.addWord(this->getCombatInformation()->getTargetId());
 	pak.addWord(this->getStats()->getMovementSpeed());
 	pak.addFloat(destination.getX());
 	pak.addFloat(destination.getY());
 	pak.addWord(0xcdcd); //Z
 	return this->sendToVisible(pak);
 }
+
+bool Entity::sendCurrentStance() {
+	Packet pak(PacketID::World::Response::CHANGE_STANCE);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addByte(this->getStats()->getStance()->getId());
+	pak.addWord(this->getStats()->getMovementSpeed());
+	return this->sendToVisible(pak);
+}
+
+
+const Combat::Type Combat::Type::NONE = Combat::Type(0);
+const Combat::Type Combat::Type::NORMAL = Combat::Type(1);
+const Combat::Type Combat::Type::SKILL = Combat::Type(2);

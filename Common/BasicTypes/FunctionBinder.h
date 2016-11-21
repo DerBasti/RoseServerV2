@@ -8,6 +8,8 @@
 #include <map>
 #include <memory>
 #include <algorithm>
+#include <initializer_list>
+#include <tuple>
 
 template<class ClassToBind, class IdType, class SetFunction = void (ClassToBind::*)(const IdType t), class GetFunction = IdType(ClassToBind::*)() const>
 class FunctionBinder {
@@ -21,7 +23,18 @@ public:
 			this->setFunctions[pair.first] = pair.second;
 		});
 	}
+	FunctionBinder(std::initializer_list<std::tuple<IdType, SetFunction, GetFunction>> tuple) {
+		(*this) = tuple;
+	}
 	virtual ~FunctionBinder() {}
+
+	FunctionBinder<ClassToBind, IdType, SetFunction, GetFunction>& operator=(std::initializer_list<std::tuple<IdType, SetFunction, GetFunction>> list) {
+		std::for_each(list.begin(), list.end(), [&](std::tuple<IdType, SetFunction, GetFunction> pair) {
+			this->setFunctions[std::get<0>(pair)] = std::get<1>(pair);
+			this->getFunctions[std::get<0>(pair)] = std::get<2>(pair);
+		});
+		return (*this);
+	}
 
 	__inline void bindProcessingFunction(const IdType id, SetFunction function) {
 		this->setFunctions[id] = function;
@@ -68,26 +81,65 @@ public:
 };
 
 template<class _T>
-struct DataInterpreter {
+class DataInterpreter {
+protected:
 	unsigned long caret;
 	unsigned long length;
 	_T* data;
-
-	DataInterpreter() : DataInterpreter(nullptr, 0) {}
-	DataInterpreter(_T* data, unsigned long len) {
+	void initProtected(_T* data, unsigned long len) {
 		this->length = len;
 		this->data = data;
 		this->caret = 0;
+	}
+public:
+	DataInterpreter() : DataInterpreter(nullptr, 0) {}
+	DataInterpreter(_T* data, unsigned long len) {
+		this->initProtected(data, len);
 	}
 	virtual ~DataInterpreter() {
 		this->data = nullptr;
 		this->caret = this->length = 0x00;
 	}
-	template<class _X = _T>
-	__inline _X get() {
+	template<class _X>
+	_X get(unsigned long overrideLen = 0) {
 		_X currentData = *((_X*)(this->data + this->caret));
 		this->caret += sizeof(_X);
 		return currentData;
+	}
+};
+
+template<typename... Args>
+class TupleDataInterpreter : DataInterpreter<const char> {
+private:
+	std::tuple<Args...> arguments;
+	unsigned long argLength;
+	std::vector<unsigned long> values;
+	void readData() {}
+	template<typename _ValueType, typename... Args> void readData(_ValueType val, Args&&... args) {
+		this->readValue<_ValueType>();
+		this->readData(args...);
+	}
+	template<typename _ValueType> void readValue() {
+		this->values.push_back(this->get<_ValueType>(0));
+	}
+public:
+	TupleDataInterpreter() { }
+	TupleDataInterpreter(const char *data, size_t len, Args&&... args) : arguments(std::forward<Args>(args)...) {
+		this->initProtected(data, len);
+		this->argLength = sizeof...(args);
+		this->readData(args...);
+	}
+	__inline unsigned long getArgumentLength() const {
+		return this->argLength;
+	}
+	virtual ~TupleDataInterpreter() {}
+
+	__inline unsigned long getValue(const size_t pos) const {
+		return this->values[pos];
+	}
+
+	std::tuple<Args...> getArguments() const {
+		return this->arguments;
 	}
 };
 

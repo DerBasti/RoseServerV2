@@ -52,6 +52,9 @@ template<class _T, class = typename std::enable_if<std::is_assignable<_T&, const
 		__inline void setOnNewValueAssigned(std::function<void(const _T previousValue)> f) {
 			this->onValueChange = f;
 		}
+		__inline std::function<void(const _T previousValue)> getOnNewValueAssigned() const {
+			return this->onValueChange;
+		}
 
 		__inline _T getValue() const {
 			return this->value;

@@ -95,77 +95,150 @@ public:
 };
 
 class Stance {
-private:
-	byte_t stanceId;
-	word_t walkSpeed;
-	word_t runSpeed;
+protected:
+	Observable<byte_t> stanceId;
 public:
-	Stance() : Stance(0x00, 0x00, 0x00) {}
-	Stance(const byte_t stanceId, const word_t walkSpeed, const word_t runSpeed) {
-		this->stanceId = stanceId;
-		this->walkSpeed = walkSpeed;
-		this->runSpeed = runSpeed;
+	Stance() {
+		stanceId = 0x00;
+		stanceId.setOnNewValueAssigned([](byte_t){});
 	}
 	virtual ~Stance() {}
 
-	operator byte_t() const {
-		return this->stanceId;
-	}
-	__inline word_t getWalkSpeed() const {
-		return this->walkSpeed;
-	}
-	__inline void setWalkSpeed(const word_t speed) {
-		this->walkSpeed = speed;
-	}
-	__inline word_t getRunSpeed() const {
-		return this->runSpeed;
-	}
-	__inline void setRunSpeed(const word_t speed) {
-		this->runSpeed = speed;
-	}
-	__inline bool isWalking() const {
+	__inline virtual bool isSitting() const {
 		return false;
 	}
-	__inline bool isRunning() const {
+	__inline virtual bool isDriving() const {
+		return false;
+	}
+	__inline virtual bool isWalking() const {
+		return false;
+	}
+	__inline virtual bool isRunning() const {
 		return true;
+	}
+	__inline virtual void setSittingStance() {
+	}
+	__inline virtual void setWalkingStance() {
+	}
+	__inline virtual void setRunningStance() {
+	}
+	__inline virtual void setDrivingStance() {
+	}
+	__inline byte_t getId() const {
+		return this->stanceId.getValue();
+	}
+	__inline void setId(const byte_t id) {
+		this->stanceId = id;
+	}
+	__inline void setOnStanceChanged(std::function<void(byte_t)> f) {
+		this->stanceId.setOnNewValueAssigned(f == nullptr ? [](byte_t){} : f);
+	}
+};
+
+class NPCStance : public Stance {
+private:
+	const static byte_t WALKING = 0x00;
+	const static byte_t RUNNING = 0x01;
+public:
+	NPCStance() {
+		this->stanceId = RUNNING;
+	}
+	virtual ~NPCStance() {}
+
+	__inline void setWalkingStance() {
+		this->stanceId = NPCStance::WALKING;
+	}
+	__inline void setRunningStance() {
+		this->stanceId = NPCStance::RUNNING;
+	}
+
+	__inline bool isWalking() const {
+		return this->getId() == NPCStance::WALKING;
+	}
+
+	__inline bool isRunning() const {
+		return this->getId() == NPCStance::RUNNING;
+	}
+};
+
+class PlayerStance : public Stance {
+private:
+	const static byte_t SITTING = 0x01;
+	const static byte_t WALKING = 0x02;
+	const static byte_t RUNNING = 0x03;
+	const static byte_t DRIVING = 0x04;
+public:
+	PlayerStance() {
+		this->stanceId = RUNNING;
+	}
+	~PlayerStance() {}
+
+	__inline bool isWalking() const {
+		return this->getId() == PlayerStance::WALKING;
+	}
+
+	__inline bool isRunning() const {
+		return this->getId() == PlayerStance::RUNNING;
+	}
+
+	__inline bool isDriving() const {
+		return this->getId() == PlayerStance::DRIVING;
+	}
+
+	__inline bool isSitting() const {
+		return this->getId() == PlayerStance::SITTING;
+	}
+
+	__inline void setWalkingStance() {
+		this->stanceId = PlayerStance::WALKING;
+	}
+	__inline void setRunningStance() {
+		this->stanceId = PlayerStance::RUNNING;
+	}
+	__inline void setDrivingStance() {
+		this->stanceId = PlayerStance::DRIVING;
+	}
+	__inline void setSittingStance() {
+		this->stanceId = PlayerStance::SITTING;
 	}
 };
 
 class Stats {
 protected:
+	word_t level;
 	dword_t currentHp;
 	dword_t maxHp;
 
 	dword_t currentMp;
 	dword_t maxMp;
 
+	word_t accuracy;
 	word_t movementSpeed;
 	word_t stamina;
 
 	word_t attackPower;
 	word_t physicalDefense;
 	word_t magicalDefense;
+	word_t attackSpeed;
 	float range;
 
-	Observable<Stance> stance;
+	Stance* stance;
 public:
 	Stats() {
-		stance.setOnNewValueAssigned([&](Stance stance) {
-			if (stance.isWalking()) {
-				this->movementSpeed = stance.getWalkSpeed();
-			}
-			else if (stance.isRunning()) {
-				this->movementSpeed = stance.getRunSpeed();
-			}
-		});
 		this->currentHp = this->maxHp = 100;
 		this->currentMp = this->maxMp = 100;
+		this->accuracy = 50;
 		this->stamina = 5000;
 		this->attackPower = this->physicalDefense = this->magicalDefense = 50;
 		this->range = 100.0f;
+		this->attackSpeed = 100;
 		this->movementSpeed = 425;
+		this->stance = nullptr;
 	}
-	virtual ~Stats() {}
+	virtual ~Stats() {
+		delete stance;
+		stance = nullptr;
+	}
 
 	__inline unsigned long getHP() const {
 		return this->currentHp;
@@ -192,6 +265,18 @@ public:
 	__inline unsigned long getMaxMP() const {
 		return this->maxMp;
 	}
+	__inline word_t getLevel() const {
+		return this->level;
+	}
+	__inline void setLevel(const word_t level) {
+		this->level = level;
+	}
+	__inline word_t getAccuracy() const {
+		return this->accuracy;
+	}
+	__inline void setAccuracy(const word_t acc) {
+		this->accuracy = acc;
+	}
 	__inline word_t getStamina() const {
 		return this->stamina;
 	}
@@ -200,6 +285,24 @@ public:
 	}
 	__inline void setAttackPower(const word_t atk) {
 		this->attackPower = atk;
+	}
+	__inline word_t getPhysicalDefense() const {
+		return this->physicalDefense;
+	}
+	__inline void setPhysicalDefense(const word_t def) {
+		this->physicalDefense = def;
+	}
+	__inline word_t getMagicalDefense() const {
+		return this->magicalDefense;
+	}
+	__inline void setMagicalDefense(const word_t def) {
+		this->magicalDefense = def;
+	}
+	__inline word_t getAttackSpeed() const {
+		return this->attackSpeed;
+	}
+	__inline void setAttackSpeed(const word_t spd) {
+		this->attackSpeed = spd;
 	}
 	__inline float getAttackRange() const {
 		return this->range;
@@ -212,6 +315,12 @@ public:
 	}
 	__inline void setMovementSpeed(const word_t moveSpd) {
 		this->movementSpeed = moveSpd;
+	}
+	__inline Stance* getStance() const {
+		return this->stance;
+	}
+	__inline void setStance(Stance* stance) {
+		this->stance = stance;
 	}
 };
 
@@ -249,9 +358,64 @@ public:
 	}
 	void update(std::map<word_t, Map::Sector*> newVisibleSectors);
 	void forceClear();
+	Entity* find(const word_t localId);
 
 	__inline std::map<word_t, Map::Sector*> getVisibleSectors() const {
 		return this->visibleSectors;
+	}
+};
+
+class Combat {
+public:
+	class Type {
+		private:
+			byte_t id;
+			Type(const byte_t id) {
+				this->id = id;
+			}
+		public:
+			Type() {}
+			~Type() {}
+			const static Combat::Type NONE;
+			const static Combat::Type NORMAL;
+			const static Combat::Type SKILL;
+			
+			Combat::Type& operator=(const Combat::Type& type) = default;
+
+			bool operator==(const Combat::Type& type) const {
+				return this->id == type.id;
+			}
+			bool operator!=(const Combat::Type& type) const {
+				return !this->operator==(type);
+			}
+	};
+private:
+	class Entity* target;
+	Combat::Type type;
+public:
+	Combat() {
+		this->target = nullptr;
+		this->type = Combat::Type::NONE;
+	}
+	virtual ~Combat() {
+		this->target = nullptr;
+		this->type = Combat::Type::NONE;
+	}
+
+	class Entity* getTarget() const;
+	void setTarget(class Entity* target);
+	word_t getTargetId() const;
+
+	void clear() {
+		this->target = nullptr;
+		this->type = Combat::Type::NONE;
+	}
+
+	__inline Combat::Type getType() const {
+		return this->type;
+	}
+	__inline void setType(const Combat::Type& type) {
+		this->type = type;
 	}
 };
 
@@ -261,19 +425,27 @@ private:
 	PositionInformation positions;
 	Stats stats;
 	Visuality visuality;
+	Combat combat;
 protected:
+	virtual void updateAttackPower() {}
+	virtual void updateMaxHP() {}
+	virtual void updateMaxMP() {}
+	virtual void updatePhysicalDefense() {}
+	virtual void updateMagicalDefense() {}
+	virtual void updateMovementSpeed() {}
+	virtual void updateAttackSpeed() {}
+	virtual void updateAttackRange() {}
+
 	bool sendToVisible(const Packet& pak);
-	virtual bool sendEntityVisuallyAdded(Entity* entity) {
-		return true;
-	}
+	virtual bool sendEntityVisuallyAdded(Entity* entity) { return true; }
 	virtual bool sendPlayerVisuallyAdded(Entity* entity, Packet& pak) { return true; }
 	virtual bool sendNPCVisuallyAdded(Entity* entity, Packet& pak) { return true; }
 	virtual bool sendMonsterVisuallyAdded(Entity* entity, Packet& pak) { return true; }
 
-	virtual bool sendEntityVisuallyRemoved(Entity* entity) {
-		return true;
-	}
+	virtual bool sendEntityVisuallyRemoved(Entity* entity) { return true; }
+
 	virtual bool sendNewDestinationVisually();
+	virtual bool sendCurrentStance();
 public:
 	Entity() {
 		auto onNewSectorFunc = [&](Map::Sector* sector) {
@@ -314,11 +486,17 @@ public:
 	__inline Visuality* getVisuality() {
 		return &this->visuality;
 	}
+	__inline Combat* getCombatInformation() {
+		return &this->combat;
+	}
 
+	virtual void updateStats();
 	void movementProc();
 
 	virtual void doAction() {
 	}
+
+	virtual bool isEnemyOf(Entity* entity) const { return false; }
 
 	virtual bool isPlayer() const { return false; }
 	virtual bool isNPC() const { return false; }

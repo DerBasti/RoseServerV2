@@ -36,8 +36,14 @@ public:
 		__inline Entity* getDesignatedTarget() const {
 			return this->designatedTarget;
 		}
+		__inline Entity* setDesignatedTarget(Entity* entity) {
+			this->designatedTarget = entity;
+		}
 		__inline Entity* getFoundTarget() const {
 			return this->foundTarget;
+		}
+		__inline void setFoundTarget(Entity* entity) {
+			this->foundTarget = entity;
 		}
 		__inline byte_t getBlockType() const {
 			return this->blockType;
@@ -262,7 +268,6 @@ private:
 	unsigned long checkInterval;
 	unsigned long damageAmountTrigger;
 	String filePath;
-
 
 	std::vector<AIP::State*> states;
 public:

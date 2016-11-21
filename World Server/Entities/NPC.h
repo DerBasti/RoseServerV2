@@ -7,15 +7,13 @@
 
 #include "Entity.h"
 #include "..\FileTypes\AIP.h"
+#include "..\FileTypes\STB.h"
 #include "..\..\Common\BasicTypes\RingCounter.h"
 
 class NPC : public Entity {
 private:
 	float dir;
 protected:
-	word_t typeId;
-	String name;
-
 	class AIHelper {
 		private:
 			StoppableClock timer;
@@ -45,11 +43,23 @@ protected:
 				this->currentRecordId[blockId]++;
 			}
 	};
+	word_t typeId;
+	String name;
 
 	AIHelper* ai;
+	NPCSTB::Entry* npcData;
+	Entity* owner;
+
+	virtual void updateAttackPower();
+	virtual void updateMaxHP();
+	virtual void updateMaxMP();
+	virtual void updatePhysicalDefense();
+	virtual void updateMagicalDefense();
+	virtual void updateMovementSpeed();
+	virtual void updateAttackSpeed();
+	virtual void updateAttackRange();
 
 public:
-	
 	NPC() {}
 	NPC(const word_t npcId, const byte_t mapId, const Position& pos, const float direction);
 	virtual ~NPC();
@@ -65,6 +75,9 @@ public:
 	}
 	__inline AIHelper* getAI() const {
 		return this->ai;
+	}
+	__inline const NPCSTB::Entry* getNPCData() const {
+		return this->npcData;
 	}
 };
 

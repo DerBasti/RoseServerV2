@@ -358,7 +358,57 @@ public:
 			this->amount = 0x00;
 		}
 	}
+};
 
+class OperationService {
+private:
+	OperationService() {}
+	~OperationService() {}
+public:
+	const static byte_t OPERATION_EQUAL = 0x00;
+	const static byte_t OPERATION_BIGGER = 0x01;
+	const static byte_t OPERATION_BIGGER_EQUAL = 0x02;
+	const static byte_t OPERATION_SMALLER = 0x03;
+	const static byte_t OPERATION_SMALLER_EQUAL = 0x04;
+	const static byte_t OPERATION_RETURN_RHS = 0x05;
+	const static byte_t OPERATION_ADDITION = 0x06;
+	const static byte_t OPERATION_SUBTRACTION = 0x07;
+	const static byte_t OPERATION_MULTIPLICATION = 0x08;
+	const static byte_t OPERATION_INCREMENT = 0x09;
+	const static byte_t OPERATION_NOT_EQUAL = 0x0A;
+
+	template<class _Ty1, class _Ty2> static bool checkOperation(const _Ty1& first, const _Ty2& second, const byte_t operation) {
+		switch (operation) {
+		case OperationService::OPERATION_EQUAL:
+			return (first == second);
+		case OperationService::OPERATION_BIGGER:
+			return (first > second);
+		case OperationService::OPERATION_BIGGER_EQUAL:
+			return (first >= second);
+		case OperationService::OPERATION_SMALLER:
+			return (first < second);
+		case OperationService::OPERATION_SMALLER_EQUAL:
+			return (first <= second);
+		case OperationService::OPERATION_NOT_EQUAL:
+			return (first != second);
+		}
+		return false;
+	}
+	template<class _Ty> static _Ty resultOperation(const _Ty& first, const _Ty& second, const byte_t operation) {
+		switch (operation) {
+		case OperationService::OPERATION_ADDITION:
+			return _Ty(first + second);
+		case OperationService::OPERATION_SUBTRACTION:
+			return _Ty(first - second);
+		case OperationService::OPERATION_MULTIPLICATION:
+			return _Ty(first * second);
+		case OperationService::OPERATION_INCREMENT:
+			return _Ty(first + 1);
+		case OperationService::OPERATION_RETURN_RHS:
+			return _Ty(second);
+		}
+		return _Ty(0);
+	}
 };
 
 #endif //__COMMON_DATATYPES__
