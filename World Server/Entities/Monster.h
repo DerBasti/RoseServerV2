@@ -13,6 +13,7 @@ private:
 public:
 	Monster(const word_t typeId, const byte_t mapId, const Position& pos, class MonsterSpawn* spawnRef);
 	virtual ~Monster();
+
 	void onDeath();
 
 	__inline MonsterSpawn* getSpawn() const {

@@ -18,13 +18,9 @@ protected:
 		private:
 			StoppableClock timer;
 			AIP* data;
-			RingCounter currentRecordId[AIP::StateTypes::DEFAULT_STATE_AMOUNT];
 		public:
 			AIHelper(AIP* ptr) {
 				this->data = ptr;
-				for (unsigned int i = 0; i < AIP::StateTypes::DEFAULT_STATE_AMOUNT; i++) {
-					currentRecordId[i] = RingCounter(this->data == nullptr ? 0x00 : this->data->getState(i)->getRecordAmount());
-				}
 				this->timer.start();
 			}
 			__inline AIP* getData() const {
@@ -36,12 +32,6 @@ protected:
 			__inline void updateTimer() {
 				this->timer.timeLap();
 			}
-			__inline RingCounter& getCurrentRecordId(const byte_t blockId) {
-				return this->currentRecordId[blockId];
-			}
-			__inline void advanceToNextRecord(const byte_t blockId) {
-				this->currentRecordId[blockId]++;
-			}
 	};
 	word_t typeId;
 	String name;
@@ -49,6 +39,8 @@ protected:
 	AIHelper* ai;
 	NPCSTB::Entry* npcData;
 	Entity* owner;
+
+	virtual bool sendNewDestinationVisually();
 
 	virtual void updateAttackPower();
 	virtual void updateMaxHP();
@@ -58,7 +50,6 @@ protected:
 	virtual void updateMovementSpeed();
 	virtual void updateAttackSpeed();
 	virtual void updateAttackRange();
-
 public:
 	NPC() {}
 	NPC(const word_t npcId, const byte_t mapId, const Position& pos, const float direction);
@@ -68,8 +59,11 @@ public:
 		return this->typeId;
 	}
 	virtual void doAction();
+	virtual void onSpawn();
+	virtual void onDeath() {}
 
 	__inline virtual bool isNPC() const { return true; }
+
 	__inline float getDirection() const {
 		return this->dir;
 	}

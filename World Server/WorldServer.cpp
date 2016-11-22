@@ -2,7 +2,6 @@
 #include "Entities\Player.h"
 
 WorldServer::WorldServer(const String& IP, unsigned short port, MYSQL* mysql) : ROSEServer(IP, port, mysql) {
-	srand(time(nullptr));
 	vfs = std::shared_ptr<VFS>(new VFS(this->getConfig().get("GameFolder"), true));
 
 	this->loadSTB<NPCSTB>(npcFile, "3DDATA\\STB\\LIST_NPC.STB");
@@ -95,10 +94,14 @@ void WorldServer::loadIFOs(Map *currentMap, std::vector<VFS::Entry>& ifoFiles) {
 			String gateName = row->get(0x02);
 			Map* destMap = this->getMap(destMapId);
 			const ZON::EventInformation* event = nullptr;
-			if (destMap && destMap->isValid() && (event = destMap->getZoneData()->getEvent("start")) != nullptr) {
+			if (destMap && destMap->isValid()) {
 				SingleTelegate src(tele.getPosition(), currentMap->getId());
+				event = destMap->getZoneData()->getEvent(gateName);
+				if (event == nullptr) {
+					event = destMap->getZoneData()->getEvent("start");
+				}
 				SingleTelegate dest(event->getPosition(), destMapId);
-				currentMap->addTelegate(src, dest);
+				currentMap->addTelegate(tele.getUnknownValue(), src, dest);
 			}
 		});
 	});
@@ -114,11 +117,7 @@ void WorldServer::onRequestsFinished() {
 			std::for_each(map->beginEntities(), map->endEntities(), [&](std::pair<const word_t, Entity*>& p) {
 				auto currentEntity = p.second;
 				currentEntity->movementProc();
-				if (currentEntity->isPlayer()) {
-					this->logger.info("Player's turn.");
-				}
-				if (map->updateEntity(currentEntity)) {
-				}
+				map->updateEntity(currentEntity);
 				currentEntity->doAction();
 			});
 		}

@@ -145,7 +145,7 @@ protected:
 	}
 public:
 	typedef SafeChar::iterator iterator;
-	const static size_t INVALID_LENGTH = -1;
+	const static size_t INVALID_LENGTH = static_cast<size_t>(-1);
 	String() { 
 		this->assignData(nullptr, 0);
 		this->length = 0;
@@ -305,8 +305,6 @@ public:
 			const char* tmpToken = token + len - 1;
 			bool found = true;
 			for (int j = len - 1; j >= 0 && i >= 0; j--, i--) {
-				char that = *thisData;
-				char other = *tmpToken;
 				if (*thisData != *tmpToken) {
 					found = false;
 					break;
@@ -320,7 +318,7 @@ public:
 		}
 		return INVALID_LENGTH;
 	}
-	unsigned long findLastOf(const char token, const size_t offset) const {
+	unsigned long findLastOf(const char token) const {
 		char buf[0x02] = { token, 0x00 };
 		return this->findLastOf(buf);
 	}
@@ -341,8 +339,8 @@ public:
 			ranThrough = true;
 			const char* tmpToken = token;
 			for (unsigned int j = 0; j < len && i < this->getLength(); i++, j++) {
-				char currentToken = (ignoreCaseSensitivity ? toupper(*tmpToken) : *tmpToken);
-				char currentChar = (ignoreCaseSensitivity ? toupper(*thisData) : *thisData);
+				char currentToken = static_cast<char>(ignoreCaseSensitivity ? toupper(*tmpToken) : *tmpToken);
+				char currentChar = static_cast<char>(ignoreCaseSensitivity ? toupper(*thisData) : *thisData);
 				if (currentChar != currentToken) {
 					ranThrough = false;
 					break;
@@ -440,7 +438,6 @@ public:
 		String *holder = new String[amount];
 		unsigned int lastPos = 0x00;
 		unsigned int idx = 0x00;
-		char* thisData = this->data; 
 		String cpy(*this);
 		while ((lastPos = cpy.findFirstOf(token)) != INVALID_LENGTH) {
 			holder[idx++] = cpy.substring(0, lastPos);
@@ -456,7 +453,7 @@ public:
 	String toUpper() const {
 		String str; str.reserve(this->getLength());
 		for (unsigned int i = 0; i < this->getLength(); i++) {
-			str += toupper((*this)[i]);
+			str += static_cast<unsigned char>(toupper((*this)[i]));
 		}
 		str[this->getLength()] = 0x00;
 		return str;

@@ -22,7 +22,7 @@ public:
 		byte_t blockType;
 	public:
 		InformationTransfer() : InformationTransfer(0) {}
-		InformationTransfer(byte_t blockType) : InformationTransfer(0, nullptr) {}
+		InformationTransfer(byte_t blockType) : InformationTransfer(blockType, nullptr) {}
 		InformationTransfer(byte_t blockType, Entity* causer) : InformationTransfer(blockType, causer, nullptr) {}
 		InformationTransfer(byte_t blockType, Entity* causer, Entity* target) {
 			this->blockType = blockType;
@@ -189,6 +189,7 @@ public:
 		static void SetQuestTrigger(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void AttackOwnersTarget(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void SetMapAsPVPArea(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SetMapAsPVEArea(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void GiveItemToOwner(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void SetAIVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
 	};

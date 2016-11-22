@@ -47,6 +47,7 @@ void MonsterSpawn::addMonster(const word_t typeId, const Position& pos, const wo
 	auto worldServer = ROSEServer::getServer<WorldServer>();
 	for (word_t i = 0; i < amount; i++) {
 		Monster *newMon = new Monster(typeId, this->getMapId(), pos, this);
+		newMon->onSpawn();
 		worldServer->getMap(this->getMapId())->updateEntity(newMon);
 		this->spawnedMonsters.push_back(newMon);
 	}
@@ -54,6 +55,7 @@ void MonsterSpawn::addMonster(const word_t typeId, const Position& pos, const wo
 
 Monster::Monster(const word_t typeId, const byte_t mapId, const Position& pos, MonsterSpawn* spawnRef) : NPC(typeId, mapId, pos, 0.0f) {
 	this->spawnReference = spawnRef;
+	this->onSpawn();
 }
 
 Monster::~Monster() {
@@ -65,4 +67,5 @@ Monster::~Monster() {
 }
 
 void Monster::onDeath() {
+	//?
 }

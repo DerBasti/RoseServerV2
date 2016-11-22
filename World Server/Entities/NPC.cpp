@@ -58,6 +58,21 @@ void NPC::doAction() {
 	}
 }
 
+void NPC::onSpawn() {
+	AI::doRoutine(this, AIP::StateTypes::SPAWNED, this->getAI()->getData());
+}
+
+bool NPC::sendNewDestinationVisually() {
+	Packet pak(PacketID::World::Response::MOVEMENT_MONSTER);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addWord(this->getCombatInformation()->getTargetId());
+	pak.addWord(this->getStats()->getMovementSpeed());
+	pak.addPosition(this->getPositionInformation()->getDestination());
+	pak.addWord(0x00); //Z-Axis
+	pak.addByte(this->getStats()->getStance()->getId());
+	return this->sendToVisible(pak);
+}
+
 void NPC::updateAttackPower() {
 	word_t attackPower = this->getNPCData()->get(NPCSTB::Columns::ATTACKPOWER_COLUMN).toUShort();
 	this->getStats()->setAttackPower(attackPower);

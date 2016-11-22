@@ -404,7 +404,7 @@ private:
 	unsigned char skillLevel;
 public:
 	SkillRequirement() : SkillRequirement(0, 0) {}
-	SkillRequirement(unsigned short basicId, unsigned skillLevel) {
+	SkillRequirement(unsigned short basicId, unsigned char skillLevel) {
 		this->skillBasicId = basicId;
 		this->skillLevel = skillLevel;
 	}
@@ -544,7 +544,7 @@ public:
 	//reqOffset can be between 0 and 2
 	__inline SkillRequirement getSkillingRequirements(const word_t row, const byte_t reqOffset) const {
 		return SkillRequirement(this->getEntry(row)->get(SkillSTB::Columns::COLUMN_REQUIRED_SKILL_ID_FIRST + (reqOffset * 2)).toShort(),
-			this->getEntry(row)->get(SkillSTB::Columns::COLUMN_REQUIRED_SKILL_LEVEL_FIRST + (reqOffset * 2)).toShort());
+			this->getEntry(row)->get(SkillSTB::Columns::COLUMN_REQUIRED_SKILL_LEVEL_FIRST + (reqOffset * 2)).toByte());
 	}
 };
 

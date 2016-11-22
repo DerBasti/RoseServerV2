@@ -202,7 +202,7 @@ bool Player::sendInventory() {
 
 	pak.addWord(0x00);
 	pak.addDWord(0x00);
-	for (unsigned int i = 1; i < Inventory::Slots::MAXIMUM; i++) {
+	for (byte_t i = 1; i < Inventory::Slots::MAXIMUM; i++) {
 		pak.addWord(inventory->get(i).getPacketHeader());
 		pak.addDWord(inventory->get(i).getPacketData());
 	}
@@ -305,7 +305,11 @@ bool Player::pakMovement() {
 	float newX = this->getPacket().getFloat(0x02);
 	float newY = this->getPacket().getFloat(0x06);
 
-	this->getCombatInformation()->setTarget(this->getVisuality()->find(targetId));
+	Entity* target = nullptr;
+	if (targetId != 0x00) {
+		target = this->getVisuality()->find(targetId);
+	}
+	this->getCombatInformation()->setTarget(target);
 
 	this->getPositionInformation()->setDestination(Position(newX, newY));
 
@@ -314,7 +318,7 @@ bool Player::pakMovement() {
 
 bool Player::pakTeleport() {
 	word_t teleGateId = this->getPacket().getWord(0x00);
-	Telegate* gate = ROSEServer::getServer<WorldServer>()->getTelegate(teleGateId);
+	auto gate = this->getPositionInformation()->getMap()->getGate(teleGateId);
 	if (gate == nullptr) {
 		return false;
 	}
@@ -450,6 +454,16 @@ bool Player::sendEntityVisuallyRemoved(Entity* entity) {
 	Packet pak(PacketID::World::Response::REMOVE_VISIBLE_ENTITY);
 	pak.addWord(entity->getBasicInformation()->getLocalId());
  	return this->sendPacket(pak);
+}
+
+bool Player::sendNewDestinationVisually() {
+	Packet pak(PacketID::World::Response::MOVEMENT_PLAYER);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addWord(this->getCombatInformation()->getTargetId());
+	pak.addWord(this->getStats()->getMovementSpeed());
+	pak.addPosition(this->getPositionInformation()->getDestination());
+	pak.addWord(0x00); //Z-Axis
+	return this->sendToVisible(pak);
 }
 
 bool Player::handlePacket() {

@@ -96,14 +96,15 @@ void Visuality::forceClear() {
 	this->visibleSectors.clear();
 }
 
-__inline Entity* Combat::getTarget() const {
+Entity* Combat::getTarget() const {
 	return this->target;
 }
+
 void Combat::setTarget(Entity* target) {
 	this->target = target;
 }
 
-__inline word_t Combat::getTargetId() const {
+word_t Combat::getTargetId() const {
 	return (this->getTarget() == nullptr ? 0x00 : this->getTarget()->getBasicInformation()->getLocalId());
 }
 
@@ -118,18 +119,6 @@ bool Entity::sendToVisible(const Packet& pak) {
 		});
 	});
 	return result;
-}
-
-bool Entity::sendNewDestinationVisually() {
-	auto destination = this->getPositionInformation()->getDestination();
-	Packet pak(PacketID::World::Response::MOVEMENT_PLAYER);
-	pak.addWord(this->getBasicInformation()->getLocalId());
-	pak.addWord(this->getCombatInformation()->getTargetId());
-	pak.addWord(this->getStats()->getMovementSpeed());
-	pak.addFloat(destination.getX());
-	pak.addFloat(destination.getY());
-	pak.addWord(0xcdcd); //Z
-	return this->sendToVisible(pak);
 }
 
 bool Entity::sendCurrentStance() {

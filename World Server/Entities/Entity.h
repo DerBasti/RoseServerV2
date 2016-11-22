@@ -420,13 +420,13 @@ public:
 };
 
 class Entity {
-private:
+protected:
 	EntityInfo basicIngameInformation;
 	PositionInformation positions;
 	Stats stats;
 	Visuality visuality;
 	Combat combat;
-protected:
+
 	virtual void updateAttackPower() {}
 	virtual void updateMaxHP() {}
 	virtual void updateMaxMP() {}
@@ -444,7 +444,7 @@ protected:
 
 	virtual bool sendEntityVisuallyRemoved(Entity* entity) { return true; }
 
-	virtual bool sendNewDestinationVisually();
+	virtual bool sendNewDestinationVisually() { return true; }
 	virtual bool sendCurrentStance();
 public:
 	Entity() {

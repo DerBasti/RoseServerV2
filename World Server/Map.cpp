@@ -32,6 +32,12 @@ Map::~Map() {
 		spawn = nullptr;
 	});
 	this->spawns.clear();
+
+	std::for_each(this->telegates.begin(), this->telegates.end(), [](Telegate* gate) {
+		delete gate;
+		gate = nullptr;
+	});
+	this->telegates.clear();
 }
 
 void Map::createSectors(std::vector<VFS::Entry>& entries) {
@@ -44,7 +50,7 @@ void Map::createSectors(std::vector<VFS::Entry>& entries) {
 	word_t marginDifferences[2] = { marginX[1] - marginX[0] + 1, marginY[1] - marginY[0] + 1 };
 	Position mapDimension(static_cast<float>(marginDifferences[0] * IFO::DEFAULT_SECTOR_SIZE),
 		static_cast<float>(marginDifferences[1] * IFO::DEFAULT_SECTOR_SIZE));
-	Position positionMin(marginX[0] * IFO::DEFAULT_SECTOR_SIZE, marginY[0] * IFO::DEFAULT_SECTOR_SIZE);
+	Position positionMin(static_cast<float>(marginX[0] * IFO::DEFAULT_SECTOR_SIZE), static_cast<float>(marginY[0] * IFO::DEFAULT_SECTOR_SIZE));
 
 	word_t sectorAmount[2] = { static_cast<word_t>(mapDimension.getX() / subSectorSize), static_cast<word_t>(mapDimension.getY() / subSectorSize) };
 	this->sectorDescriptor = SectorDimensions(sectorAmount[0], sectorAmount[1]);
@@ -158,8 +164,8 @@ bool Map::isActive() const {
 	return this->playerOnMap.size() > 0;
 }
 
-bool Map::addTelegate(const SingleTelegate& src, const SingleTelegate& dest) {
-	this->telegates.push_back(Telegate(src, dest));
+bool Map::addTelegate(const word_t id, const SingleTelegate& src, const SingleTelegate& dest) {
+	this->telegates.push_back(new Telegate(id, src, dest));
 	return true;
 }
 
@@ -272,4 +278,17 @@ void Map::removeEntity(Entity* entity) {
 	entity->getBasicInformation()->getSector()->removeEntity(entity);
 	entity->getBasicInformation()->setSector(nullptr);
 	entity->getBasicInformation()->setLocalId(0x00);
+}
+
+Telegate* Map::getGate(const word_t id) {
+	Telegate* result = nullptr;
+	auto gatePtr = this->telegates.data();
+	for (unsigned int i = 0; i < this->telegates.size(); i++, gatePtr++) {
+		auto gate = *gatePtr;
+		if (gate->getId() == id) {
+			result = gate;
+			break;
+		}
+	}
+	return result;
 }

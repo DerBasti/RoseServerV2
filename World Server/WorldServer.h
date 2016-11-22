@@ -28,7 +28,6 @@ class WorldServer : public ROSEServer {
 		std::shared_ptr<STB> warpFile;
 
 		std::vector<Map*> maps;
-		std::map<word_t, Telegate*> telegates;
 		std::map<word_t, AIP*> aiData;
 
 		template<class _T> void loadSTB(std::shared_ptr<_T>& ptr, const char *path, bool applySTL = true) {
@@ -36,7 +35,7 @@ class WorldServer : public ROSEServer {
 			String pathAsString = String(path);	
 			if (!pathAsString.isEmpty()) {
 				auto entry = VFS::get()->getEntry(pathAsString);
-				ptr = std::shared_ptr<_T>(new _T(String(pathAsString), entry.getContent()));
+				ptr = std::shared_ptr<_T>(new _T(String(pathAsString), entry.getContent(), applySTL));
 			}
 		}
 
@@ -63,10 +62,6 @@ class WorldServer : public ROSEServer {
 
 		__inline Map* getMap(const byte_t mapId) {
 			return (this->maps.size() > mapId ? this->maps[mapId] : nullptr);
-		}
-
-		__inline Telegate* getTelegate(const word_t id) {
-			return (this->telegates.count(id) > 0 ? this->telegates[id] : nullptr);
 		}
 
 		__inline AIP* getAIData(const word_t id) {

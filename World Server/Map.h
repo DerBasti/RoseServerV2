@@ -31,13 +31,18 @@ public:
 
 class Telegate {
 private:
+	word_t id;
 	SingleTelegate source;
 	SingleTelegate destination;
 public:
 	Telegate() {}
-	Telegate(const SingleTelegate& src, const SingleTelegate& dest) {
+	Telegate(const word_t id, const SingleTelegate& src, const SingleTelegate& dest) {
+		this->id = id;
 		this->source = src;
 		this->destination = dest;
+	}
+	__inline word_t getId() const {
+		return this->id;
 	}
 	__inline const SingleTelegate& getSource() const {
 		return this->source;
@@ -131,7 +136,7 @@ private:
 
 	std::vector<Sector*> sectors;
 	std::vector<MonsterSpawn*> spawns;
-	std::vector<Telegate> telegates;
+	std::vector<Telegate*> telegates;
 
 	SectorDimensions sectorDescriptor;
 
@@ -162,7 +167,7 @@ public:
 
 	bool addNPC(const IFO::NPC& npc);
 	bool addSpawn(const IFO::Spawn& spawn);
-	bool addTelegate(const SingleTelegate& src, const SingleTelegate& dest);
+	bool addTelegate(const word_t id, const SingleTelegate& src, const SingleTelegate& dest);
 
 	__inline EntityIterator beginEntities() {
 		return this->entitiesOnMap.begin();
@@ -196,6 +201,7 @@ public:
 	__inline dword_t getSectorSize() const {
 		return (!this->isValid() ? 4000 : this->getZoneData()->getSectorSize());
 	}
+	Telegate* getGate(const word_t id);
 };
 
 #endif

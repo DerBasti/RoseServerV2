@@ -24,8 +24,11 @@ const AI::Action::ActionFunctionPtr AI::Action::ActionMapping[] = {
 	&AI::Action::RunAway,
 	&AI::Action::DropRandomItem,
 	&AI::Action::CallFewAlliesForAttack,
+	&AI::Action::AttackNearestTarget,
 	&AI::Action::SpawnPetAtPosition,
 	&AI::Action::KillNPC,
+	nullptr,
+	nullptr,
 	&AI::Action::CastSkill,
 	&AI::Action::ChangeNPCVar,
 	&AI::Action::ChangeGlobalVar,
@@ -35,6 +38,7 @@ const AI::Action::ActionFunctionPtr AI::Action::ActionMapping[] = {
 	&AI::Action::SetQuestTrigger,
 	&AI::Action::AttackOwnersTarget,
 	&AI::Action::SetMapAsPVPArea,
+	&AI::Action::SetMapAsPVEArea,
 	&AI::Action::GiveItemToOwner,
 	&AI::Action::SetAIVar,
 	nullptr,
@@ -80,24 +84,26 @@ void AI::doRoutine(NPC* npc, const byte_t blockType, AIP* aiData) {
 		return;
 	}
 	AI::InformationTransfer trans(blockType, npc);
-	auto record = currentState->getRecord(npc->getAI()->getCurrentRecordId(blockType));
-	if (record != nullptr) {
-		bool conditionsFulfilled = true;
-		for (unsigned int j = 0; j < record->getConditionAmount(); j++) {
-			auto cond = record->getCondition(j);
-			if (!cond->isConditionFulfilled(npc, cond, &trans)) {
-				conditionsFulfilled = false;
+	for (unsigned int i = 0; i < currentState->getRecordAmount(); i++) {
+		auto record = currentState->getRecord(i);
+		if (record != nullptr) {
+			bool conditionsFulfilled = true;
+			for (unsigned int j = 0; j < record->getConditionAmount(); j++) {
+				auto cond = record->getCondition(j);
+				if (!cond->isConditionFulfilled(npc, cond, &trans)) {
+					conditionsFulfilled = false;
+					break;
+				}
+			}
+			if (conditionsFulfilled) {
+				for (unsigned int j = 0; j < record->getActionAmount(); j++) {
+					auto action = record->getAction(j);
+					action->doAction(npc, action, &trans);
+				}
 				break;
 			}
 		}
-		if (conditionsFulfilled) {
-			for (unsigned int i = 0; i < record->getActionAmount(); i++) {
-				auto action = record->getAction(i);
-				action->doAction(npc, action, &trans);
-			}
-		}
 	}
-	npc->getAI()->advanceToNextRecord(blockType);
 	npc->getAI()->updateTimer();
 }
 
@@ -188,7 +194,9 @@ bool AI::Condition::CheckPercentHP(NPC* entity, const AI::Condition* condition, 
 
 bool AI::Condition::CheckRandomPercentage(NPC* entity, const AI::Condition* condition, AI::InformationTransfer* transfer) {
 	DataInterpreter<const char> reader(condition->getData(), condition->getLength());
-	return reader.get<dword_t>() <= Randomize::getUInt(0, 100);
+	byte_t chance = reader.get<byte_t>();
+	dword_t rolled = Randomize::getUInt(0, 100);
+	return chance <= rolled;
 }
 
 bool AI::Condition::FindNearestSuitableTarget(NPC* entity, const AI::Condition* condition, AI::InformationTransfer* transfer) {
@@ -310,7 +318,7 @@ void AI::Action::SayBubbledMessage(NPC* entity, const AI::Action* action, AI::In
 }
 void AI::Action::SetRandomPositionFromCurrent(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
 	DataInterpreter<const char> reader(action->getData(), action->getLength());
-	float distance = static_cast<float>(reader.get<dword_t>() * 100) * 0.66f;
+	float distance = static_cast<float>(reader.get<dword_t>() * 100);
 	Position newDestination = entity->getPositionInformation()->getCurrent() + 
 		Position(Randomize::GetFloat(-distance, distance), Randomize::GetFloat(-distance, distance));
 
@@ -325,7 +333,7 @@ void AI::Action::SetRandomPositionFromSpawn(NPC* entity, const AI::Action* actio
 	}
 	Monster* mon = static_cast<Monster*>(entity);
 	DataInterpreter<const char> reader(action->getData(), action->getLength());
-	float distance = static_cast<float>(reader.get<dword_t>()) * 0.66f;
+	float distance = static_cast<float>(reader.get<dword_t>());
 	Position newDestination = mon->getSpawn()->getSpawnData().getPosition() + 
 		Position(Randomize::GetFloat(-distance, distance), Randomize::GetFloat(-distance, distance));
 
@@ -409,6 +417,9 @@ void AI::Action::AttackOwnersTarget(NPC* entity, const AI::Action* action, AI::I
 
 }
 void AI::Action::SetMapAsPVPArea(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 
+
+}
+void AI::Action::SetMapAsPVEArea(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) {
 
 }
 void AI::Action::GiveItemToOwner(NPC* entity, const AI::Action* action, AI::InformationTransfer* transfer) { 

@@ -45,26 +45,26 @@ public:
 			Slots() {}
 			~Slots() {}
 		public:
-			const static word_t FACE = 1;
-			const static word_t HEADGEAR = 2;
-			const static word_t ARMOR = 3;
-			const static word_t GLOVES = 5;
-			const static word_t BACK = 4;
-			const static word_t SHOES = 6;
-			const static word_t WEAPON = 7;
-			const static word_t SHIELD = 8;
+			const static byte_t FACE = 1;
+			const static byte_t HEADGEAR = 2;
+			const static byte_t ARMOR = 3;
+			const static byte_t GLOVES = 5;
+			const static byte_t BACK = 4;
+			const static byte_t SHOES = 6;
+			const static byte_t WEAPON = 7;
+			const static byte_t SHIELD = 8;
 
-			const static word_t ARROWS = 132;
-			const static word_t BULLETS = 133;
-			const static word_t CANNONSHELLS = 134;
-			const static word_t CART_FRAME = 135;
-			const static word_t CART_ENGINE = 136;
-			const static word_t CART_WHEELS = 137;
-			const static word_t CART_WEAPON = 138;
-			const static word_t CART_ABILITY = 139;
+			const static byte_t ARROWS = 132;
+			const static byte_t BULLETS = 133;
+			const static byte_t CANNONSHELLS = 134;
+			const static byte_t CART_FRAME = 135;
+			const static byte_t CART_ENGINE = 136;
+			const static byte_t CART_WHEELS = 137;
+			const static byte_t CART_WEAPON = 138;
+			const static byte_t CART_ABILITY = 139;
 
-			const static word_t TAB_SIZE = 30;
-			const static word_t MAXIMUM = 140;
+			const static byte_t TAB_SIZE = 30;
+			const static byte_t MAXIMUM = 140;
 	};
 private:
 	Item items[Inventory::Slots::MAXIMUM];
@@ -75,9 +75,6 @@ public:
 		}
 	}
 	virtual ~Inventory() {
-		for (unsigned int i = 0; i < Inventory::Slots::MAXIMUM; i++) {
-			this->items[i].clear();
-		}
 	}
 	__inline Item& get(const byte_t slot) {
 		return this->items[slot];
@@ -443,6 +440,8 @@ private:
 	bool sendNPCVisuallyAdded(Entity* entity, Packet& pak);
 	bool sendMonsterVisuallyAdded(Entity* entity, Packet& pak);
 	bool sendEntityVisuallyRemoved(Entity* entity);
+
+	bool sendNewDestinationVisually();
 
 	bool pakAssignId();
 	bool pakIdentify();

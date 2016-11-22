@@ -267,8 +267,7 @@ public:
 
 	__inline void setAutoCommit(const bool commit) {
 		this->autoCommitMode = commit;
-		int x = static_cast<unsigned int>(this->getAutoCommit());
-		mysql_autocommit(this->getSqlHandle(), x);
+		mysql_autocommit(this->getSqlHandle(), this->getAutoCommit());
 	}
 
 	__inline void commit() const {
