@@ -66,21 +66,59 @@ public:
 			const static byte_t TAB_SIZE = 30;
 			const static byte_t MAXIMUM = 140;
 	};
+	const static word_t MAXIMUM_STACKABLE = 999;
 private:
-	Item items[Inventory::Slots::MAXIMUM];
+	byte_t slotAmount;
+	Item* items;
 public:
-	Inventory() {
-		for (unsigned int i = 0; i < Inventory::Slots::MAXIMUM; i++) {
+	Inventory() : Inventory(Inventory::Slots::MAXIMUM) {
+	}
+	explicit Inventory(const byte_t slotAmount) {
+		this->slotAmount = slotAmount;
+		this->items = new Item[this->slotAmount];
+		for (unsigned int i = 0; i < this->slotAmount; i++) {
 			this->items[i].clear();
 		}
 	}
 	virtual ~Inventory() {
+		delete[] this->items;
+		this->items = nullptr;
 	}
+
+	byte_t getSuitableSlot(const Item& item) {
+		if (item.isStackable()) {
+			for (byte_t i = 0; i < this->slotAmount; i++) {
+				if (item.getType() == this->items[i].getType() &&
+					item.getId() == this->items[i].getId() &&
+					item.getAmount() + this->items[i].getAmount() <= MAXIMUM_STACKABLE) {
+					return i;
+				}
+			}
+		}			
+		for (byte_t i = 0; i < this->slotAmount; i++) {
+			if (!this->items[i].isValid()) {
+				return i;
+			}
+		}
+		return (std::numeric_limits<byte_t>::max)();
+	}
+
+	bool addItem(const Item& i) {
+		const byte_t slot = this->getSuitableSlot(i);
+		if (slot < this->slotAmount) {
+			this->items[slot] = Item(i.getType(), i.getId(), i.getAmount() + this->items[slot].getAmount());
+		}
+		return slot < this->slotAmount;
+	}
+	
 	__inline Item& get(const byte_t slot) {
 		return this->items[slot];
 	}
 	__inline Item& operator[](const byte_t pos) {
 		return this->get(pos);
+	}
+	__inline byte_t getSlotAmount() const {
+		return this->slotAmount;
 	}
 };
 
@@ -320,7 +358,257 @@ public:
 	}
 };
 
-class Player : public Entity, public ROSESocketClient {
+
+class QuestJournal {
+public:
+	const static byte_t MAXIMUM_EPISODE_VARS = 5;
+	const static byte_t MAXIMUM_JOB_VARS = 3;
+	const static byte_t MAXIMUM_PLANET_VARS = 7;
+	const static byte_t MAXIMUM_UNION_VARS = 10;
+	const static byte_t MAXIMUM_QUESTS = 10;
+
+	class Entry {
+	public:
+		const static byte_t MAX_QUEST_VARS = 10;
+		const static byte_t MAX_QUEST_ITEMS = 6;
+	private:
+		const static word_t SWITCHES_AS_BITS = 0x20;
+		const static word_t MAX_SWITCHES = (SWITCHES_AS_BITS / (sizeof(byte_t)*8));
+
+		word_t vars[MAX_QUEST_VARS];
+		Inventory* questInventory;
+		word_t questId;
+		dword_t startTime;
+		byte_t lever[MAX_SWITCHES];
+	public:
+		Entry() : Entry(0) {}
+		Entry(const word_t questId) {
+			this->questInventory = new Inventory(MAX_QUEST_ITEMS);
+			this->reset();
+			this->questId = questId;
+		}
+		virtual ~Entry() {
+			delete this->questInventory;
+			this->questInventory = nullptr;
+		}
+		void reset() {
+			reset(0);
+		}
+		void reset(word_t newQuestId) {
+			this->questId = newQuestId;
+			this->startTime = 0x00;
+			for (unsigned int i = 0; i < MAX_SWITCHES; i++) {
+				this->lever[i] = 0x00;
+			}
+			for (unsigned int i = 0; i < MAX_QUEST_VARS; i++) {
+				this->vars[i] = 0x00;
+			}
+			for (unsigned int i = 0; i < MAX_QUEST_ITEMS; i++) {
+				this->questInventory->get(i).clear();
+			}
+		}
+		__inline const word_t getQuestId() const {
+			return this->questId;
+		}
+		__inline void replaceQuestId(const word_t newQuestId) {
+			this->questId = newQuestId;
+		}
+		__inline const Item& getItem(const byte_t slotId) const {
+			return this->questInventory->get(slotId);
+		}
+		__inline const word_t getQuestVariable(const word_t slotId) const {
+			return this->vars[slotId];
+		}
+		__inline void setQuestVariable(const byte_t slotId, const word_t value) {
+			this->vars[slotId] = value;
+		}
+		__inline dword_t getPassedTime() const {
+			return this->startTime;
+		}
+
+		__inline dword_t getLeverData() const {
+			return lever[0] | (lever[1] << 8) || (lever[2] << 16) | (lever[3] << 24);
+		}
+
+		__inline byte_t getLever(const word_t slot) const {
+			return (this->lever[slot >> 3] & (1 << (slot & 0x07)));
+		}
+		__inline void setLever(const word_t slot) {
+			(this->lever[slot >> 3] |= (1 << (slot & 0x07)));
+		}
+		__inline void clearLever(const word_t slot) {
+			(this->lever[slot >> 3] &= ~(1 << (slot & 0x07)));
+		}
+		void flipLever(const word_t slot) {
+			if (this->getLever(slot)) {
+				this->clearLever(slot);
+			}
+			else {
+				this->setLever(slot);
+			}
+		}
+	};
+private:
+	Entry* currentlySelectedQuest;
+	Entry* journal[MAXIMUM_QUESTS];
+
+	word_t episodeVars[MAXIMUM_EPISODE_VARS];
+	word_t jobVars[MAXIMUM_JOB_VARS];
+	word_t planetVars[MAXIMUM_PLANET_VARS];
+	word_t unionVars[MAXIMUM_UNION_VARS];
+
+	byte_t globalFlag[0x40];
+public:
+	QuestJournal() {
+		currentlySelectedQuest = nullptr;
+		for (unsigned int i = 0; i < MAXIMUM_QUESTS; i++) {
+			journal[i] = new Entry();
+		}
+	}
+	virtual ~QuestJournal() {
+		for (unsigned int i = 0; i < MAXIMUM_QUESTS; i++) {
+			delete journal[i];
+			journal[i] = nullptr;
+		}
+	}
+
+	Entry* getQuestEntry(const word_t questId) const {
+		for (unsigned int i = 0; i < MAXIMUM_QUESTS; i++) {
+			if (this->journal[i]->getQuestId() == questId) {
+				return this->journal[i];
+			}
+		}
+		return nullptr;
+	}
+
+	Entry* getEmptyEntry() const {
+		for (unsigned int i = 0; i < MAXIMUM_QUESTS; i++) {
+			if (this->journal[i]->getQuestId() == 0x00) {
+				return this->journal[i];
+			}
+		}
+		return nullptr;
+	}
+
+	__inline bool selectQuest(const word_t questId) {
+		return this->selectQuest(questId, false);
+	}
+	bool selectQuest(const word_t questId, bool dryRun) {
+		auto entry = getQuestEntry(questId);
+		if (entry != nullptr && !dryRun) {
+			this->currentlySelectedQuest = entry;
+		}
+		return entry != nullptr;
+	}
+
+	__inline Entry* getQuestSlot(const byte_t slot) const {
+		return this->journal[slot];
+	}
+
+	__inline Entry* getCurrentlySelectedQuest() const {
+		return this->currentlySelectedQuest;
+	}
+
+	__inline word_t getEpisodeVar(const word_t slot) const {
+		return this->episodeVars[slot];
+	}
+	__inline void setEpisodeVar(const word_t slot, const word_t value) {
+		this->episodeVars[slot] = value;
+	}
+	__inline word_t getJobVar(const word_t slot) const {
+		return this->jobVars[slot];
+	}
+	__inline void setJobVar(const word_t slot, const word_t value) {
+		this->jobVars[slot] = value;
+	}
+	__inline word_t getPlanetVar(const word_t slot) const {
+		return this->planetVars[slot];
+	}
+	__inline void setPlanetVar(const word_t slot, const word_t value) {
+		this->planetVars[slot] = value;
+	}
+	__inline word_t getUnionVar(const word_t slot) const {
+		return this->unionVars[slot];
+	}
+	__inline void setUnionVar(const word_t slot, const word_t value) {
+		this->unionVars[slot] = value;
+	}
+
+	word_t getVarByType(const word_t type, const word_t varId) const {
+		byte_t realType = (type >> 8);
+		switch (realType) {
+			case 0x00:
+				if (this->getCurrentlySelectedQuest() != nullptr) {
+					return this->getCurrentlySelectedQuest()->getQuestVariable(varId);
+				}
+			break;
+			case 0x01:
+				if (this->getCurrentlySelectedQuest() != nullptr) {
+					return this->getCurrentlySelectedQuest()->getLever(varId);
+				}
+			break;
+			case 0x02:
+				//TODO: Time
+			break;
+			case 0x03:
+				return this->getEpisodeVar(varId);
+			break;
+			case 0x04:
+				return this->getJobVar(varId);
+			break;
+			case 0x05:
+				return this->getPlanetVar(varId);
+			break;
+			case 0x06:
+				return this->getUnionVar(varId);
+			break;
+		}
+		return 0x00;
+	}
+
+	void setVarByType(const word_t type, const byte_t varId, const word_t value) {
+		byte_t realType = (type >> 8);
+		switch (realType) {
+			case 0x00:
+				if (this->getCurrentlySelectedQuest() != nullptr) {
+					this->getCurrentlySelectedQuest()->setQuestVariable(varId, value);
+				}
+			break;
+			case 0x01:
+				if (this->getCurrentlySelectedQuest() != nullptr) {
+					if (value > 0) {
+						this->getCurrentlySelectedQuest()->setLever(varId);
+					}
+					else {
+						this->getCurrentlySelectedQuest()->clearLever(varId);
+					}
+				}
+			break;
+			case 0x02:
+				//TODO: Time
+			break;
+			case 0x03:
+				this->setEpisodeVar(varId, value);
+			break;
+			case 0x04:
+				this->setJobVar(varId, value);
+			break;
+			case 0x05:
+				this->setPlanetVar(varId, value);
+			break;
+			case 0x06:
+				this->setUnionVar(varId, value);
+			break;
+		}
+	}
+
+	template<class _T = byte_t>
+	__inline _T getGlobalFlag(const byte_t slot) const {
+		return ((_T*)this->globalFlag)[slot];
+	}
+};
+
+class Player : public Entity {
 public:
 	class AbilityTypes {
 	private:
@@ -398,10 +686,14 @@ public:
 		const static byte_t CART_GAUGE = 0x61;
 	};
 private:
-	static FunctionBinder<Player, unsigned long, bool(Player::*)()> PACKET_FUNCTIONS;
+	static FunctionBinder<Player, unsigned long, bool(Player::*)(const Packet&)> PACKET_FUNCTIONS;
 
-	Account accountInfo;
-	Character character;
+	Account *accountInfo;
+	Character *character;
+	Attributes *attributes;
+	QuestJournal* questJournal;
+
+	ROSESocketClient* networkInterface;
 
 	void updateAttributes();
 
@@ -434,37 +726,64 @@ private:
 	bool sendInventory();
 	bool sendWeightPercentage();
 	bool sendTeleport();
+	bool sendBasicAttack();
 
 	bool sendEntityVisuallyAdded(Entity* entity);
 	bool sendPlayerVisuallyAdded(Entity* entity, Packet& pak);
 	bool sendNPCVisuallyAdded(Entity* entity, Packet& pak);
 	bool sendMonsterVisuallyAdded(Entity* entity, Packet& pak);
 	bool sendEntityVisuallyRemoved(Entity* entity);
+	bool sendWhisper(Entity* entity, const String& msg);
+	bool sendWhisper(const String& name, const String& msg);
+	bool sendMonsterHP(Entity* mon);
 
 	bool sendNewDestinationVisually();
 
-	bool pakAssignId();
-	bool pakIdentify();
-	bool pakTeleport();
-	bool pakMovement();
-	bool pakLocalChat();
-	bool pakChangeStance();
+	bool pakAssignId(const Packet& pak);
+	bool pakIdentify(const Packet& pak);
+	bool pakTeleport(const Packet& pak);
+	bool pakMovement(const Packet& pak);
+	bool pakLocalChat(const Packet& pak);
+	bool pakChangeStance(const Packet& pak);
+	bool pakInitBasicAttack(const Packet& pak);
 public:
 	Player(NetworkInterface* IFace, const CryptInfo& cryptInfo);
 	virtual ~Player();
 
-	bool handlePacket();
+	bool handlePacket(const Packet& pak);
 	bool sendTeleport(const byte_t mapId, const Position& pos);
+	bool sendDebugMessage(const String& msg);
 
+	void doAction();
 	virtual void updateStats();
 
-	__inline Account* getAccountInfo() {
-		return &this->accountInfo;
+	__inline Account* getAccountInfo() const {
+		return this->accountInfo;
 	}
-	__inline Character* getCharacter() {
-		return &this->character;
+	__inline Character* getCharacter() const {
+		return this->character;
 	}
+
+	__inline Attributes* getAttributes() const {
+		return this->attributes;
+	}
+	__inline QuestJournal* getQuestJournal() const {
+		return this->questJournal;
+	}
+
+	__inline ROSESocketClient* getNetworkInterface() const {
+		return this->networkInterface;
+	}
+
 	__inline bool isPlayer() const { return true; }
+
+	__inline bool isActive() const {
+		return this->getNetworkInterface() != nullptr;
+	}
+	__inline void invalidateNetworkInterface() {
+		this->networkInterface = nullptr;
+	}
+	void onDisconnect();
 };
 
 class GMService {
@@ -473,6 +792,7 @@ private:
 	~GMService() {}
 public:
 	static void teleport(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
+	static void currentPosition(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
 };
 
 #endif

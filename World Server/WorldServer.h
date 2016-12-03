@@ -9,6 +9,7 @@
 #include "FileTypes\STB.h"
 #include "FileTypes\VFS.h"
 #include "FileTypes\AIP.h"
+#include "FileTypes\QSD.h"
 #include "Map.h"
 
 class WorldServer : public ROSEServer {
@@ -19,7 +20,7 @@ class WorldServer : public ROSEServer {
 		std::shared_ptr<SkillSTB> skillFile;
 		std::shared_ptr<StatusSTB> statusFile;
 		std::shared_ptr<STB> questFile;
-		std::shared_ptr<STB> equipmentFile[15]; //0 = NOT VALID
+		std::shared_ptr<EquipmentSTB> equipmentFile[15]; //0 = NOT VALID
 		std::shared_ptr<STB> craftingFile;
 		std::shared_ptr<STB> sellFile;
 		std::shared_ptr<ZoneSTB> zoneFile;
@@ -29,6 +30,13 @@ class WorldServer : public ROSEServer {
 
 		std::vector<Map*> maps;
 		std::map<word_t, AIP*> aiData;
+
+		std::vector<QSD*> questFiles;
+		std::map<dword_t, QSD::Record*> questData;
+
+		bool multiThreadedStart;
+		std::vector<std::thread> runningThreads;
+		std::map<SOCKET, class Player*> interfaceMapping;
 
 		template<class _T> void loadSTB(std::shared_ptr<_T>& ptr, const char *path, bool applySTL = true) {
 			this->logger.info(String("Loading STB: ") + String(path));
@@ -42,6 +50,9 @@ class WorldServer : public ROSEServer {
 		void loadAI();
 		void loadZoneData();
 		void loadIFOs(Map *currentMap, std::vector<VFS::Entry>& ifoFiles);
+		void loadQuestData();
+
+		void doMapActions(Map* map);
 	public:
 		WorldServer(const char* IP, unsigned short port, MYSQL* mysql) : WorldServer(String(IP), port, mysql) {}
 		WorldServer(const String& IP, unsigned short port, MYSQL* mysql);
@@ -50,10 +61,19 @@ class WorldServer : public ROSEServer {
 
 		void onRequestsFinished();
 		void onClientDisconnect(NetworkInterface* iFace);
+		void onStartup();
 		NetworkClient* onClientConnected(NetworkInterface *iFace);
 
 		__inline void loadEncryption() {
 			GenerateCryptTables(this->getCryptInfo().table, ROSEServer::DEFAULT_ENCRYPTION_KEY);
+		}
+
+		__inline void setMultiThreaded() {
+			this->multiThreadedStart = true;
+		}
+
+		__inline EquipmentSTB* getEquipmentSTB(const byte_t itemType) {
+			return (itemType == 0 || itemType > ItemType::PAT) ? nullptr : this->equipmentFile[itemType].get();
 		}
 
 		__inline NPCSTB* getNPCSTB() const {
@@ -66,6 +86,10 @@ class WorldServer : public ROSEServer {
 
 		__inline AIP* getAIData(const word_t id) {
 			return (this->aiData.count(id) > 0 ? this->aiData[id] : nullptr);
+		}
+
+		__inline QSD::Record* getQuestByHash(const dword_t hash) const {
+			return this->questData.count(hash) > 0 ? this->questData.at(hash) : nullptr;
 		}
 };
 

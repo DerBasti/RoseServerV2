@@ -8,16 +8,18 @@
 class ROSESocketClient : public NetworkClient {
 private:
 	CryptInfo crypt;
-	Packet packet;
+	Packet packet; 
+	std::function<bool(const Packet&)> onHandlePacketTrigger;
 protected:
 	ROSESocketClient() {}
 
 	void onDataReceived(int length);
-	__inline Packet& getPacket() {
-		return this->packet;
-	}
 	__inline CryptInfo getCryptInfo() {
 		return crypt;
+	}
+
+	__inline Packet& getPacket() {
+		return this->packet;
 	}
 public:
 	ROSESocketClient(NetworkInterface* iFace, const CryptInfo& cryptInfo) : NetworkClient(iFace) {
@@ -27,9 +29,15 @@ public:
 	virtual ~ROSESocketClient() {
 		this->packet = nullptr;
 	}
+
+	__inline void setOnHandlePacket(std::function<bool(const Packet&)> f) {
+		this->onHandlePacketTrigger = (f == nullptr ? [](const Packet&) -> bool { return false; } : f);
+	}
+
 	bool sendPacket(const Packet& p);
-	virtual bool handlePacket() {
-		return true;
+
+	virtual bool handlePacket(const Packet& pak) {
+		return this->onHandlePacketTrigger(pak);
 	}
 
 };

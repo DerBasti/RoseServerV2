@@ -2,24 +2,60 @@
 #include "..\WorldServer.h"
 #include "Monster.h"
 
+#include "..\..\Common\BasicTypes\CallstackGetter.h"
 
-StaticFunctionBinder < String, void(*)(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens), void*> GM_FUNCTIONS = {
-	{ String("/tele"), &GMService::teleport }
-};
+Player::Player(NetworkInterface* iFace, const CryptInfo& cryptInfo) {
 
-Player::Player(NetworkInterface* iFace, const CryptInfo& cryptInfo) : ROSESocketClient(iFace, cryptInfo) {
-	PlayerStance *stance = new PlayerStance();
+	this->accountInfo = new Account();
+	this->attributes = new Attributes();
+	this->character = new Character();
+	this->questJournal = new QuestJournal();
+
+	this->getCombatInformation()->getAttackTimer().setWrappingTime(1000);
+
+	this->getBasicInformation()->setTeamId(0x02);
+
+	this->logger = Logger(this);
+	this->getStats()->setStance(new PlayerStance());
+	Stance *stance = this->getStats()->getStance();
+
+	this->networkInterface = new ROSESocketClient(iFace, cryptInfo);
+
+	std::function<bool(const Packet&)> onPacketReceived = [&](const Packet& pak) {
+		return this->handlePacket(pak);
+	};
+	this->networkInterface->setOnHandlePacket(onPacketReceived);
 
 	stance->setOnStanceChanged([&](byte_t) {
 		this->updateMovementSpeed();
 		this->sendCurrentStance();
 	});
 
-	this->getStats()->setStance(stance);
 };
 
 Player::~Player() {
+	delete this->accountInfo;
+	this->accountInfo = nullptr;
 
+	delete this->attributes;
+	this->attributes = nullptr;
+
+	delete this->character;
+	this->character = nullptr;
+
+	delete this->questJournal;
+	this->questJournal = nullptr;
+}
+
+void Player::onDisconnect() {
+	Map *map = this->getPositionInformation()->getMap();
+	if (map == nullptr) {
+		ROSEServer::getServer<WorldServer>()->getMap(1)->addEntity(this);
+	}
+}
+
+void Player::doAction() {
+	Entity::doAction(); //call basic version first.
 }
 
 bool Player::loadEntireCharacter() {
@@ -118,14 +154,14 @@ bool Player::sendEncryption() {
 	pak.addByte(0x00); //??
 	pak.addDWord(0x87654321); //Encryption
 	pak.addDWord(0x00);
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 bool Player::sendGamingPlan() {
 	Packet pak(PacketID::World::Response::GAMING_PLAN);
 	pak.addWord(0x1001); //?
 	pak.addDWord(0x02); //Unlimited plan
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 bool Player::sendPlayerInformation() {
@@ -192,7 +228,7 @@ bool Player::sendPlayerInformation() {
 	pak.addDWord(this->getCharacter()->getId());
 	pak.addString(this->getCharacter()->getName());
 
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 bool Player::sendInventory() {
@@ -206,175 +242,77 @@ bool Player::sendInventory() {
 		pak.addWord(inventory->get(i).getPacketHeader());
 		pak.addDWord(inventory->get(i).getPacketData());
 	}
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 
 bool Player::sendQuestData() {
 	Packet pak(PacketID::World::Response::QUEST_DATA);
 
+
 	//Episode vars
-	for (unsigned int i = 0; i < 5; i++) {
-		pak.addWord(0x00);
+	for (unsigned int i = 0; i < QuestJournal::MAXIMUM_EPISODE_VARS; i++) {
+		pak.addWord(this->getQuestJournal()->getEpisodeVar(i));
 	}
 	//JobVars
-	for (unsigned int i = 0; i < 3; i++) {
-		pak.addWord(0x00);
+	for (unsigned int i = 0; i < QuestJournal::MAXIMUM_JOB_VARS; i++) {
+		pak.addWord(this->getQuestJournal()->getJobVar(i));
 	}
 	//Planet Vars
-	for (unsigned int i = 0; i < 7; i++) {
-		pak.addWord(0x00);
+	for (unsigned int i = 0; i < QuestJournal::MAXIMUM_PLANET_VARS; i++) {
+		pak.addWord(this->getQuestJournal()->getPlanetVar(i));
 	}
 
 	//Fraction Vars
-	for (unsigned int i = 0; i < 10; i++) {
-		pak.addWord(0x00);
+	for (unsigned int i = 0; i < QuestJournal::MAXIMUM_UNION_VARS; i++) {
+		pak.addWord(this->getQuestJournal()->getUnionVar(i));
 	}
 
 	//Quest Journey
-	for (unsigned int i = 0; i < 10; i++) {
-		pak.addWord(0x00); //QuestId
-		pak.addDWord(0x00); //passed time
+	for (unsigned int i = 0; i < QuestJournal::MAXIMUM_QUESTS; i++) {
+		QuestJournal::Entry* entry = this->getQuestJournal()->getQuestSlot(i);
+		pak.addWord(entry->getQuestId()); //QuestId
+		pak.addDWord(entry->getPassedTime()); //passed time
 
-		for (unsigned int j = 0; j < 10; j++) {
-			pak.addWord(0x00); //Quest Vars
+		for (unsigned int j = 0; j < QuestJournal::Entry::MAX_QUEST_VARS; j++) {
+			pak.addWord(entry->getQuestVariable(j)); //Quest Vars
 		}
 
-		pak.addDWord(0x00); //Global Switches
+		pak.addDWord(entry->getLeverData()); //Global Switches
 
-		for (unsigned int j = 0; j < 6; j++) {
-			pak.addWord(0x00); //Item header
-			pak.addDWord(0x00); //item data
+		for (unsigned int j = 0; j < QuestJournal::Entry::MAX_QUEST_ITEMS; j++) {
+			auto item = entry->getItem(j);
+			pak.addWord(item.getPacketHeader()); //Item header
+			pak.addDWord(item.getPacketData()); //item data
 		}
 	}
-	for (unsigned int i = 0; i < 16; i++) {
-		pak.addWord(0x00); //Quest Flags
+	for (unsigned int i = 0; i < 0x10; i++) {
+		pak.addDWord(this->getQuestJournal()->getGlobalFlag<dword_t>(i)); //Quest Flags
 	}
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
-bool Player::pakAssignId() {
-	this->updateStats();
-	this->getPositionInformation()->getMap()->addEntity(this);
 
-	Packet pak(PacketID::World::Response::ASSIGN_ID);
-	pak.addWord(this->getBasicInformation()->getLocalId());
-	pak.addWord(this->getStats()->getHP());
-	pak.addWord(this->getStats()->getMP());
-	pak.addDWord(this->getCharacter()->getExperience());
-	pak.addDWord(0x00); //UNUSED
-
-	pak.addWord(0x64);
-	pak.addDWord(0x0C1F4B79);
-	pak.addWord(0x64);
-	pak.addDWord(0x3232cd50);
-	pak.addDWord(0x32323235);
-	pak.addDWord(0x35323232);
-
-	//PVP-MAP (0 = false, 1 = true)
-	pak.addDWord(0x00);
-
-	//MAP TIME
-	pak.addDWord(0x00);
-
-	//White icon (friendly)
-	pak.addDWord(0x00);
-	this->getBasicInformation()->setIngameFlag(true);
-
-	return this->sendPacket(pak) && this->sendWeightPercentage() && this->sendCurrentStance();
-}
 
 bool Player::sendWeightPercentage() {
 	Packet pak (PacketID::World::Response::WEIGHT);
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addByte(0x00); //WEIGHT PERCENT
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
-bool Player::pakIdentify() {
-	this->getAccountInfo()->setId(this->getPacket().getDWord(0x00));
-	if (!this->sendEncryption() || !this->loadEntireCharacter()) {
-		return false;
-	}
 
-	return this->sendPlayerInformation() && this->sendInventory() && this->sendQuestData() && this->sendGamingPlan();
-}
-
-bool Player::pakMovement() {
-	word_t targetId = this->getPacket().getWord(0x00);
-	float newX = this->getPacket().getFloat(0x02);
-	float newY = this->getPacket().getFloat(0x06);
-
-	Entity* target = nullptr;
-	if (targetId != 0x00) {
-		target = this->getVisuality()->find(targetId);
-	}
-	this->getCombatInformation()->setTarget(target);
-
-	this->getPositionInformation()->setDestination(Position(newX, newY));
-
-	return true;
-}
-
-bool Player::pakTeleport() {
-	word_t teleGateId = this->getPacket().getWord(0x00);
-	auto gate = this->getPositionInformation()->getMap()->getGate(teleGateId);
-	if (gate == nullptr) {
-		return false;
-	}
-	return this->sendTeleport(gate->getDestination().getMapId(), gate->getDestination().getPosition());
-}
-
-bool Player::pakLocalChat() {
-	String msg = this->getPacket().getString(0x00);
-	if (msg[0] == '/') {
-		unsigned long amount = 0x00;
-		String* ptr = msg.split(' ', &amount);
-		SharedArrayPtr<String> split(ptr, amount);
-		auto function = GM_FUNCTIONS.getProcessingFunction(split.at(0));
-		if (function) {
-			function(this, split);
-		}
-		return true;
-	}
-	Packet pak(PacketID::World::Response::LOCAL_CHAT);
-	pak.addWord(this->getBasicInformation()->getLocalId());
-	pak.addString(msg);
-	return this->sendToVisible(pak);
-}
-
-bool Player::pakChangeStance() {
-	byte_t caseId = this->getPacket().getByte(0x00);
-	Stance* stance = this->getStats()->getStance();
-	switch (caseId) {
-	case 0x00:
-		if (stance->isWalking()) {
-			stance->setRunningStance();
-		}
-		else if (stance->isRunning()) {
-			stance->setWalkingStance();
-		}
-	break;
-	case 0x01:
-		if (stance->isSitting()) {
-			stance->setRunningStance();
-		}
-		else if (!stance->isDriving() && !stance->isSitting()) {
-			stance->setSittingStance();
-		}
-	}
- 
-	return this->sendCurrentStance();
-}
 
 bool Player::sendTeleport(const byte_t mapId, const Position& pos) {
+
+	this->getCombatInformation()->clear();
+
 	Packet pak(PacketID::World::Response::TELEGATE);
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addWord(mapId);
-	pak.addFloat(pos.getX());
-	pak.addFloat(pos.getY());
-	pak.addWord(0x01);
-	if (!this->sendPacket(pak)) {
+	pak.addPosition(pos);
+	pak.addWord(0x01); //Z axus
+	if (!this->getNetworkInterface()->sendPacket(pak)) {
 		return false;
 	}
 	this->getBasicInformation()->setIngameFlag(false);
@@ -400,11 +338,27 @@ bool Player::sendEntityVisuallyAdded(Entity* entity) {
 	pak.addWord(entity->getBasicInformation()->getLocalId());
 	pak.addPosition(entity->getPositionInformation()->getCurrent());
 	pak.addPosition(entity->getPositionInformation()->getDestination());
-	pak.addWord(0x00); //What is he currently doing?
-	pak.addWord(this->getCombatInformation()->getTargetId()); //Target
-	pak.addByte(this->getStats()->getStance()->getId()); //Stance
-	pak.addDWord(this->getStats()->getHP());
-	pak.addDWord(this->isMonster() ? 0x100 : 0x00); //Team = who is the enemy?
+
+	enum VisualityBits {
+		IDLE, MOVING, FIGHTING,	DEAD
+	};
+
+	if (entity->getStats()->getHP() <= 0) {
+		pak.addWord(DEAD);
+	}
+	else if (entity->getPositionInformation()->getCurrent() != entity->getPositionInformation()->getDestination()) {
+		pak.addWord(MOVING);
+	}
+	else if (entity->getCombatInformation()->getTarget() != nullptr) {
+		pak.addWord(FIGHTING);
+	}
+	else {
+		pak.addWord(IDLE);
+	}
+	pak.addWord(entity->getCombatInformation()->getTargetId()); //Target
+	pak.addByte(entity->getStats()->getStance()->getId()); //Stance
+	pak.addDWord(entity->getStats()->getHP());
+	pak.addDWord(entity->getBasicInformation()->getTeamId()); //Team = who is the enemy?
 	pak.addDWord(0x00); //Buffs
 	if (entity->isPlayer()) {
 		return this->sendPlayerVisuallyAdded(entity, pak);
@@ -422,7 +376,7 @@ bool Player::sendPlayerVisuallyAdded(Entity* entity, Packet& pak) {
 	Player* other = static_cast<Player*>(entity);
 	pak.addByte(other->getCharacter()->getAppearance()->getSex());
 	pak.addWord(other->getStats()->getMovementSpeed());
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 bool Player::sendNPCVisuallyAdded(Entity* entity, Packet& pak) {
@@ -434,7 +388,7 @@ bool Player::sendNPCVisuallyAdded(Entity* entity, Packet& pak) {
 	pak.addWord(npc->getTypeId() - 900); //Conversation Id
 	pak.addFloat(npc->getDirection());
 	pak.addWord(0x00);
-	return this->sendPacket(pak);
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 bool Player::sendMonsterVisuallyAdded(Entity* entity, Packet& pak) {
@@ -443,52 +397,70 @@ bool Player::sendMonsterVisuallyAdded(Entity* entity, Packet& pak) {
 	}
 	Monster* mon = static_cast<Monster*>(entity);
 	pak.addWord(mon->getTypeId());
-	pak.addWord(0x00);
-	return this->sendPacket(pak);
+	pak.addWord(0x00); //?
+	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 bool Player::sendEntityVisuallyRemoved(Entity* entity) {
-	if (!entity) {
+	//only here is a check concerning the network interface necessary
+	//When the client DCs he wants to clear his vision -> interface deleted -> nullpointer
+	if (!entity || this->getNetworkInterface() == nullptr) {
 		return false;
 	}
 	Packet pak(PacketID::World::Response::REMOVE_VISIBLE_ENTITY);
 	pak.addWord(entity->getBasicInformation()->getLocalId());
- 	return this->sendPacket(pak);
+ 	return this->getNetworkInterface()->sendPacket(pak);
 }
 
 bool Player::sendNewDestinationVisually() {
 	Packet pak(PacketID::World::Response::MOVEMENT_PLAYER);
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addWord(this->getCombatInformation()->getTargetId());
-	pak.addWord(this->getStats()->getMovementSpeed());
+	pak.addWord(static_cast<word_t>(this->getPositionInformation()->getDestination().distanceTo(this->getPositionInformation()->getCurrent())));
 	pak.addPosition(this->getPositionInformation()->getDestination());
 	pak.addWord(0x00); //Z-Axis
 	return this->sendToVisible(pak);
 }
 
-bool Player::handlePacket() {
-	std::cout << "New Packet: " << std::hex << this->getPacket().getCommand() << " with Length " << std::dec << this->getPacket().getLength() << "\n";
-	auto function = Player::PACKET_FUNCTIONS.getProcessingFunction(this->getPacket().getCommand());
-	if (function) {
-		(this->*function)();
-	}
-	return true;
+bool Player::sendDebugMessage(const String& msg) {
+	return this->sendWhisper(String("Server"), msg);
 }
 
-void GMService::teleport(Player* executingPlayer, SharedArrayPtr<String>& splitCmd) {
-	if (splitCmd.getSize() < 2) {
-		return;
+bool Player::sendWhisper(Entity* entity, const String& msg) {
+	String name = String();
+	if (entity->isPlayer()) {
+		name = static_cast<Player*>(entity)->getCharacter()->getName();
 	}
-	auto worldServer = ROSEServer::getServer<WorldServer>();
-	unsigned char mapId = splitCmd.at(1).toByte();
-	Map *map = worldServer->getMap(mapId);
-	if (map) {
-		float x = 520000.0f;
-		float y = 520000.0f;
-		if (splitCmd.getSize() >= 4) {
-			x = static_cast<float>(splitCmd.at(2).toInt()) * 100;
-			y = static_cast<float>(splitCmd.at(3).toInt()) * 100;
-		}
-		executingPlayer->sendTeleport(mapId, Position(x, y));
+	else {
+		name = static_cast<NPC*>(entity)->getNPCData()->get(0);
 	}
+	return sendWhisper(name, msg);
+}
+
+bool Player::sendWhisper(const String& name, const String& msg) {
+	Packet pak(PacketID::World::Response::WHISPER_CHAT);
+	pak.addString(name);
+	pak.addString(msg);
+	return this->getNetworkInterface()->sendPacket(pak);
+}
+
+bool Player::sendMonsterHP(Entity* mon) {
+	if (!mon->isMonster()) {
+		return false;
+	}
+	Packet pak(PacketID::World::Response::SHOW_MONSTER_HP);
+	pak.addWord(mon->getBasicInformation()->getLocalId());
+	pak.addDWord(mon->getStats()->getHP());
+	return this->getNetworkInterface()->sendPacket(pak);
+}
+
+bool Player::handlePacket(const Packet& pak) {
+	this->logger.info(String("Received Packet ") + String::fromHex(pak.getCommand()) + String(" with length: ") + String::fromInt(pak.getLength()));
+	
+	auto function = Player::PACKET_FUNCTIONS.getProcessingFunction(pak.getCommand());
+	bool result = function != nullptr;
+	if (function) {
+		result &= (this->*function)(pak);
+	}
+	return result;
 }

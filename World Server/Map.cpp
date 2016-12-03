@@ -41,23 +41,21 @@ Map::~Map() {
 }
 
 void Map::createSectors(std::vector<VFS::Entry>& entries) {
-	word_t marginX[2] = { 0x00 };
-	word_t marginY[2] = { 0x00 };
-	this->detectMinMaxSectors(entries, marginX, marginY);
+	const byte_t ifoMin = 28;
+	const byte_t ifoMax = 40;
+	const byte_t ifoDiff = ifoMax - ifoMin;
+	const dword_t mapSize = ifoDiff * IFO::DEFAULT_SECTOR_SIZE;
+	Position positionMin(ifoMin * IFO::DEFAULT_SECTOR_SIZE, ifoMin * IFO::DEFAULT_SECTOR_SIZE);
 
 	const dword_t subSectorSize = this->getZoneData()->getSectorSize();
+	const word_t amountOfSectorsOnAxis = (mapSize / subSectorSize) + 1;
 
-	word_t marginDifferences[2] = { marginX[1] - marginX[0] + 1, marginY[1] - marginY[0] + 1 };
-	Position mapDimension(static_cast<float>(marginDifferences[0] * IFO::DEFAULT_SECTOR_SIZE),
-		static_cast<float>(marginDifferences[1] * IFO::DEFAULT_SECTOR_SIZE));
-	Position positionMin(static_cast<float>(marginX[0] * IFO::DEFAULT_SECTOR_SIZE), static_cast<float>(marginY[0] * IFO::DEFAULT_SECTOR_SIZE));
+	this->sectorDescriptor = SectorDimensions(amountOfSectorsOnAxis, amountOfSectorsOnAxis);
 
-	word_t sectorAmount[2] = { static_cast<word_t>(mapDimension.getX() / subSectorSize), static_cast<word_t>(mapDimension.getY() / subSectorSize) };
-	this->sectorDescriptor = SectorDimensions(sectorAmount[0], sectorAmount[1]);
-	for (unsigned int i = 0; i < sectorAmount[1]; i++) {
-		for (unsigned int j = 0; j < sectorAmount[0]; j++) {
+	for (unsigned int i = 0; i < amountOfSectorsOnAxis; i++) {
+		for (unsigned int j = 0; j < amountOfSectorsOnAxis; j++) {
 			Position sectorPosition = positionMin + Position(static_cast<float>(j*subSectorSize), static_cast<float>(i*subSectorSize));
-			this->sectors.push_back(new Sector(j + (i*sectorAmount[0]), this, sectorPosition));
+			this->sectors.push_back(new Sector(j + (i * amountOfSectorsOnAxis), this, sectorPosition));
 		}
 	}
 }
@@ -97,12 +95,12 @@ void Map::detectMinMaxSectors(std::vector<VFS::Entry>& entries, word_t* xSector,
 	ySector[1] = maximum.y;
 }
 
-std::map<word_t, Map::Sector*> Map::getVisibleSectors(Map::Sector* sector) const {
+void Map::getVisibleSectors(Map::Sector* sector, std::map<word_t, Map::Sector*>& resultMap) const {
+	resultMap.clear();
 	if (!sector) {
-		return std::map<word_t, Map::Sector*>();
+		return;
 	}
 	word_t id = sector->getId();
-	std::map<word_t, Map::Sector*> resultMap;
 
 	std::function<bool(const word_t)> isLeftmost = [&](const word_t id) {
 		return (id % this->getSectorDescriptor().getAmountOfX()) == 0;
@@ -116,21 +114,24 @@ std::map<word_t, Map::Sector*> Map::getVisibleSectors(Map::Sector* sector) const
 		return (id / this->getSectorDescriptor().getAmountOfX()) == 0;
 	};
 	std::function<bool(const word_t)> isLastRow = [&](const word_t id) {
-		return (id / this->getSectorDescriptor().getAmountOfX()) == (this->getSectorDescriptor().getAmountOfY()-1);
+		return (id / this->getSectorDescriptor().getAmountOfX()) == (this->getSectorDescriptor().getAmountOfY() - 1);
 	};
 
 	bool isLeftmostFlag = isLeftmost(id);
 	bool isRightmostFlag = isRightmost(id);
-	
+
+	unsigned int idx = 0;
 	if (!isFirstRow(id)) {
 		word_t startOffset = static_cast<word_t>((isLeftmostFlag ? 0x01 : 0x00));
 		word_t endOffset = static_cast<word_t>((isRightmostFlag ? 0x02 : 0x03));
 		for (unsigned int i = startOffset; i < endOffset; i++) {
 			word_t upperId = id - this->sectorDescriptor.getAmountOfX() - 1 + i;
-			if (upperId > id || this->sectors.size() <= upperId) {
-				continue;
+			Map::Sector* newSector = nullptr;
+			if (upperId < id && upperId < this->sectors.size()) {
+				newSector = this->sectors[upperId];
 			}
-			resultMap[upperId] = this->sectors[upperId];
+			resultMap[(idx - startOffset)] = newSector;
+			idx++;
 		}
 	}
 	word_t positionInRow = (id % this->sectorDescriptor.getAmountOfX());
@@ -157,7 +158,6 @@ std::map<word_t, Map::Sector*> Map::getVisibleSectors(Map::Sector* sector) const
 			resultMap[lowerId] = this->sectors[lowerId];
 		}
 	}
-	return resultMap;
 }
 
 bool Map::isActive() const {
@@ -207,11 +207,8 @@ bool Map::addEntity(Entity* entity) {
 Map::Sector* Map::getBestSector(Entity* entity) const {
 	if (entity != nullptr) {
 		auto sector = entity->getBasicInformation()->getSector();
-		if (sector != nullptr) {
-			bool isStillBest = entity->getPositionInformation()->getCurrent().distanceTo(sector->getPosition()) < this->getSectorSize();
-			if (isStillBest) {
-				return sector;
-			}
+		if (sector != nullptr && entity->getPositionInformation()->getCurrent().distanceTo(sector->getPosition()) < this->getSectorSize()) {
+			return sector;
 		}
 	}
 	return this->getBestSector(entity != nullptr ? entity->getPositionInformation()->getCurrent() : Position());
@@ -220,7 +217,8 @@ Map::Sector* Map::getBestSector(Entity* entity) const {
 Map::Sector* Map::getBestSector(const Position& pos) const {
 	auto firstSector = this->getSector(0);
 	register float sectorSize = static_cast<float>(this->getSectorSize());
-	Position difference = pos - firstSector->getPosition();
+	float fX = pos.getX() - firstSector->getPosition().getX();
+	float fY = pos.getY() - firstSector->getPosition().getY();
 
 	std::function<word_t(const float, const word_t)> offsetCalculation = [&](const float value, const word_t max) {
 		long tmpReturnValue = static_cast<long>(roundf(value / sectorSize));
@@ -233,8 +231,8 @@ Map::Sector* Map::getBestSector(const Position& pos) const {
 		return static_cast<word_t>(tmpReturnValue);
 	};
 
-	word_t xSector = offsetCalculation(difference.getX(), this->getSectorDescriptor().getAmountOfX());
-	word_t ySector = offsetCalculation(difference.getY(), this->getSectorDescriptor().getAmountOfY());
+	word_t xSector = offsetCalculation(fX, this->getSectorDescriptor().getAmountOfX());
+	word_t ySector = offsetCalculation(fY, this->getSectorDescriptor().getAmountOfY());
 
 	word_t totalId = ySector * this->getSectorDescriptor().getAmountOfX() + xSector;
 	if (totalId < this->sectors.size()) {
@@ -244,7 +242,10 @@ Map::Sector* Map::getBestSector(const Position& pos) const {
 }
 
 
-bool Map::updateEntity(Entity* entity) {
+bool Map::updateEntity(Entity* entity) const {
+	if (!entity->getBasicInformation()->isIngame()) {
+		return false;
+	}
 	Map::Sector* bestSector = this->getBestSector(entity);
 	if (bestSector->hasEntity(entity)) {
 		return false;
@@ -255,7 +256,9 @@ bool Map::updateEntity(Entity* entity) {
 	}
 	bestSector->addEntity(entity);
 
-	entity->getVisuality()->update(this->getVisibleSectors(bestSector));
+	std::map<word_t, Map::Sector*> visibleSectors;
+	this->getVisibleSectors(bestSector, visibleSectors);
+	entity->getVisuality()->update(visibleSectors);
 	return true;
 }
 
@@ -291,4 +294,12 @@ Telegate* Map::getGate(const word_t id) {
 		}
 	}
 	return result;
+}	
+
+void Map::addInvalidEntity(Entity* entity) {
+	this->invalidEntities[entity->getBasicInformation()->getLocalId()] = entity;
+}
+
+bool Map::isInvalidEntity(const word_t id) {
+	return this->invalidEntities.count(id) > 0;
 }

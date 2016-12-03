@@ -63,6 +63,9 @@ template<class _T, class = typename std::enable_if<std::is_assignable<_T&, const
 		__inline _T& getMutableValue() {
 			return this->value;
 		}
+		__inline const _T& getRefValue() const {
+			return this->value;
+		}
 };
 
 #endif //__OBSERVABLE__

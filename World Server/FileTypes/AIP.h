@@ -16,22 +16,18 @@ class AI {
 public:
 	class InformationTransfer {
 	private:
-		class Entity* triggerCauser;
 		class Entity* designatedTarget;
-		class Entity* foundTarget;
+		class Entity* nearestTarget;
+		class Entity* lastFound;
 		byte_t blockType;
 	public:
 		InformationTransfer() : InformationTransfer(0) {}
 		InformationTransfer(byte_t blockType) : InformationTransfer(blockType, nullptr) {}
-		InformationTransfer(byte_t blockType, Entity* causer) : InformationTransfer(blockType, causer, nullptr) {}
-		InformationTransfer(byte_t blockType, Entity* causer, Entity* target) {
+		InformationTransfer(byte_t blockType, Entity* target) {
 			this->blockType = blockType;
-			this->triggerCauser = causer;
 			this->designatedTarget = target;
-			this->foundTarget = nullptr;
-		}
-		__inline Entity* getTriggerCauser() const {
-			return this->triggerCauser;
+			this->nearestTarget = nullptr;
+			this->lastFound = nullptr;
 		}
 		__inline Entity* getDesignatedTarget() const {
 			return this->designatedTarget;
@@ -40,10 +36,16 @@ public:
 			this->designatedTarget = entity;
 		}
 		__inline Entity* getFoundTarget() const {
-			return this->foundTarget;
+			return this->lastFound;
 		}
 		__inline void setFoundTarget(Entity* entity) {
-			this->foundTarget = entity;
+			this->lastFound = entity;
+		}
+		__inline Entity* getNearestTarget() const {
+			return this->nearestTarget;
+		}
+		__inline void setNearestTarget(Entity* entity) {
+			this->nearestTarget = entity;
 		}
 		__inline byte_t getBlockType() const {
 			return this->blockType;
@@ -105,8 +107,8 @@ public:
 			std::cout << "Destroying Condition.\n";
 		}
 
-		__inline bool isConditionFulfilled(class NPC* entity, const AI::Condition* condition, InformationTransfer* trans) const {
-			return AI::Condition::ConditionMapping[condition->getOpCode() - AI::Condition::OPCODE_START](entity, condition, trans);
+		__inline bool isConditionFulfilled(class NPC* entity, InformationTransfer* trans) const {
+			return AI::Condition::ConditionMapping[this->getOpCode() - AI::Condition::OPCODE_START](entity, this, trans);
 		}
 
 		static bool FightOrDelay(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
@@ -140,6 +142,8 @@ public:
 		static bool CheckAIVar(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
 		static bool IsTargetClanMaster(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
 		static bool CheckClanCreationTime(class NPC* entity, const AI::Condition* condition, InformationTransfer* transfer);
+
+		static bool LogCondition(class NPC* npc, const AI::Condition* condition, InformationTransfer* transfer);
 	};
 	class Action : public DataSet {
 	public:
@@ -155,8 +159,8 @@ public:
 			std::cout << "Destroying Action.\n";
 		}
 
-		__inline void doAction(class NPC* entity, const AI::Action* action, InformationTransfer* trans) const {
-			AI::Action::ActionMapping[action->getOpCode() - AI::Action::OPCODE_START](entity, action, trans);
+		__inline void doAction(class NPC* entity, InformationTransfer* trans) const {
+			AI::Action::ActionMapping[this->getOpCode() - AI::Action::OPCODE_START](entity, this, trans);
 		}
 
 		static void StopAction(class NPC* entity, const Action* action, InformationTransfer* transfer);
@@ -179,7 +183,7 @@ public:
 		static void DropRandomItem(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void CallFewAlliesForAttack(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void SpawnPetAtPosition(class NPC* entity, const Action* action, InformationTransfer* transfer);
-		static void KillNPC(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void Suicide(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void CastSkill(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void ChangeNPCVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void ChangeGlobalVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
@@ -192,6 +196,10 @@ public:
 		static void SetMapAsPVEArea(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void GiveItemToOwner(class NPC* entity, const Action* action, InformationTransfer* transfer);
 		static void SetAIVar(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SpawnPetAtMyPosition(class NPC* entity, const Action* action, InformationTransfer* transfer);
+		static void SpawnPetAtGivenPosition(class NPC* entity, const Action* action, InformationTransfer *transfer);
+
+		static void LogAction(class NPC* npc, const Action* action, InformationTransfer *transfer);
 	};
 
 	static void doRoutine(class NPC*, const byte_t, class AIP*);
@@ -204,64 +212,71 @@ public:
 	public:
 		class Record {
 		private:
-			std::vector<AI::Condition*> conditions;
-			std::vector<AI::Action*> actions;
+			AI::Condition** conditions;
+			unsigned long conditionAmount;
+
+			AI::Action** actions;
+			unsigned long actionAmount;
 		public:
-			Record() {}
+			Record(std::vector<SharedArrayPtr<char>>& conds, std::vector<SharedArrayPtr<char>>& actions) {
+				this->conditionAmount = static_cast<unsigned long>(conds.size());
+				this->conditions = new AI::Condition*[this->conditionAmount];
+				for (unsigned int i = 0; i < this->conditionAmount; i++) {
+					this->conditions[i] = new AI::Condition(conds[i]);
+				}
+
+				this->actionAmount = static_cast<unsigned long>(actions.size());
+				this->actions = new AI::Action*[this->actionAmount];
+				for (unsigned int i = 0; i < this->actionAmount; i++) {
+					this->actions[i] = new AI::Action(actions[i]);
+				}
+			}
 			virtual ~Record() {
-				std::for_each(conditions.begin(), conditions.end(), [](AI::Condition* cond) {
-					delete cond;
-					cond = nullptr;
-				});
-				conditions.clear();
+				for (unsigned int i = 0; i < this->conditionAmount; i++) {
+					delete conditions[i];
+					conditions[i] = nullptr;
+				}
+				delete[] conditions;
+				conditions = nullptr;
 
-				std::for_each(actions.begin(), actions.end(), [](AI::Action* action) {
-					delete action;
-					action = nullptr;
-				});
-				actions.clear();
-			}
-
-			__inline void addCondition(const SharedArrayPtr<char>& newData) {
-				this->conditions.push_back(new AI::Condition(newData));
-			}
-			__inline void addAction(const SharedArrayPtr<char>& newData) {
-				this->actions.push_back(new AI::Action(newData));
+				for (unsigned int i = 0; i < this->actionAmount; i++) {
+					delete actions[i];
+					actions[i] = nullptr;
+				}
+				delete[] actions;
+				actions = nullptr;
 			}
 
-			__inline AI::Action* getAction(const word_t id) const {
-				return (id < this->actions.size() ? this->actions[id] : nullptr);
+			__inline AI::Action** getActions() const {
+				return this->actions;
 			}
-			__inline AI::Condition* getCondition(const word_t id) const {
-				return (id < this->conditions.size() ? this->conditions[id] : nullptr);
+			__inline AI::Condition** getConditions() const {
+				return this->conditions;
 			}
 			__inline dword_t getConditionAmount() const {
-				return this->conditions.size();
+				return this->conditionAmount;
 			}
 			__inline dword_t getActionAmount() const {
-				return this->actions.size();
+				return this->actionAmount;
 			}
 		};
 	private:
-		std::vector<AIP::State::Record*> records;
+		AIP::State::Record** records;
+		dword_t recordSize;
 	public:
-		State() {}
+		State(const dword_t recSize) {
+			this->recordSize = recSize;
+			this->records = new AIP::State::Record*[this->getRecordAmount()];
+		}
 		virtual ~State() {
-			std::for_each(this->records.begin(), this->records.end(), [](AIP::State::Record* record) {
-				delete record;
-				record = nullptr;
-			});
-			this->records.clear();
+			delete[] records;
+			records = nullptr;
 		}
-
-		__inline void addRecord(AIP::State::Record* newRecord) {
-			this->records.push_back(std::move(newRecord));
-		}
-		__inline AIP::State::Record* getRecord(const unsigned long id) const {
-			return (id < this->records.size() ? this->records[id] : nullptr);
+		AIP::State::Record** getRecords() const {
+			return this->records;
 		}
 		__inline unsigned long getRecordAmount() const {
-			return static_cast<unsigned long>(this->records.size());
+			return recordSize;
 		}
 	};
 private:
@@ -301,29 +316,28 @@ public:
 			String tempString = bfr.readString(tempLen);
 
 			for (unsigned long i = 0; i < AIP::StateTypes::DEFAULT_STATE_AMOUNT; i++) {
-				AIP::State* currentState = new AIP::State();
 				bfr.setCaret(bfr.getCaret() + 0x20); //Fixed string size of 32 bytes
 
 				dword_t recordAmount = bfr.readDWord();
+				AIP::State* currentState = new AIP::State(recordAmount);
 				for (unsigned int j = 0; j < recordAmount; j++) {
 					bfr.setCaret(bfr.getCaret() + 0x20);
-					AIP::State::Record* newRecord = new AIP::State::Record();
 
-					typedef void (AIP::State::Record::*AddSubrecordFunction)(const SharedArrayPtr<char>& newData);
-					std::function<void(AddSubrecordFunction)> recordReader = [&](AddSubrecordFunction function) -> void {
+					std::function<void(std::vector<SharedArrayPtr<char>>&)> recordReader = [&](std::vector<SharedArrayPtr<char>>& storage) -> void {
 						unsigned long amount = bfr.readDWord();
 						for (unsigned int y = 0; y < amount; y++) {
 							unsigned long length = bfr.readDWord();
 							bfr.setCaret(bfr.getCaret() - sizeof(dword_t));
 							SharedArrayPtr<char> data = bfr.readBinary(length);
-							(newRecord->*function)(data);
+							storage.push_back(data);
 						}
 					};
+					std::vector<SharedArrayPtr<char>> conditions;
+					std::vector<SharedArrayPtr<char>> actions;
+					recordReader(conditions);
+					recordReader(actions);
 
-					recordReader(&AIP::State::Record::addCondition);
-					recordReader(&AIP::State::Record::addAction);
-
-					currentState->addRecord(newRecord);
+					currentState->getRecords()[j] = new AIP::State::Record(conditions, actions);
 				}
 
 				this->states.push_back(currentState);

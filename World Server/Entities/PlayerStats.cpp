@@ -1,4 +1,5 @@
 #include "Player.h"
+#include "..\WorldServer.h"
 
 void Player::updateStats() {
 	this->updateAttributes();
@@ -71,16 +72,39 @@ void Player::updateMagicalDefense() {
 }
 
 void Player::updateMovementSpeed() {
-	word_t basicMovementspeed = this->getStats()->getStance()->isRunning() ? 425 : 200;
-	this->getStats()->setMovementSpeed(basicMovementspeed);
+	word_t movementSpeed = 200;
+	Inventory *inventory = this->getCharacter()->getInventory();
+	Stance* playerStance = this->getStats()->getStance();
+
+	if (playerStance->isRunning()) {
+		movementSpeed = 425;
+		if (inventory->get(Inventory::Slots::SHOES).getAmount() > 0) {
+			EquipmentSTB* stb = ROSEServer::getServer<WorldServer>()->getEquipmentSTB(ItemType::SHOES);
+			movementSpeed += stb->getMovementSpeed(inventory->get(Inventory::Slots::SHOES).getId()) - 50;
+		}
+	}
+	else if (playerStance->isDriving()) {
+		movementSpeed = 1200;
+	}
+	this->getStats()->setMovementSpeed(movementSpeed);
 }
 
 void Player::updateAttackSpeed() {
 	word_t atkSpeed = 115;
+	Inventory *inventory = this->getCharacter()->getInventory();
+	if (inventory->get(Inventory::Slots::WEAPON).getAmount() > 0) {
+		EquipmentSTB* stb = ROSEServer::getServer<WorldServer>()->getEquipmentSTB(ItemType::WEAPON);
+		atkSpeed = 1500 / (5 + stb->getAttackSpeed(inventory->get(Inventory::Slots::WEAPON).getId()));
+	}
 	this->getStats()->setAttackSpeed(atkSpeed);
 }
 
 void Player::updateAttackRange() {
 	word_t atkRange = 100;
+	Inventory *inventory = this->getCharacter()->getInventory();
+	if (inventory->get(Inventory::Slots::WEAPON).getAmount() > 0) {
+		EquipmentSTB* stb = ROSEServer::getServer<WorldServer>()->getEquipmentSTB(ItemType::WEAPON);
+		atkRange = stb->getAttackRange(inventory->get(Inventory::Slots::WEAPON).getId());
+	}
 	this->getStats()->setAttackRange(atkRange);
 }

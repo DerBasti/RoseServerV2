@@ -30,10 +30,16 @@ public:
 	Position& operator=(const Position& pos) = default;
 
 	Position operator+(const Position& pos) const {
-		return Position(this->getX() + pos.getX(), this->getY() + pos.getY());
+		return Position(this->x + pos.x, this->y + pos.y);
 	}
 	Position operator-(const Position& pos) const {
-		return Position(this->getX() - pos.getX(), this->getY() - pos.getY());
+		return Position(this->x - pos.x, this->y - pos.y);
+	}
+
+	Position& operator*=(const float mod) {
+		this->x *= mod;
+		this->y *= mod;
+		return (*this);
 	}
 
 	__inline float distanceTo(const Position& pos) const {
@@ -41,13 +47,17 @@ public:
 	}
 
 	float toLength() const {
-		float x2 = (this->getX() * this->getX());
-		float y2 = (this->getY() * this->getY());
+		register float x2 = (this->x * this->x);
+		register float y2 = (this->y * this->y);
 		return ::sqrtf(x2 + y2);
 	}
 
+	Position normalize() {
+		return Position(x / toLength(), y / toLength());
+	}
+
 	__inline bool operator==(const Position& pos) const {
-		return this->getX() == pos.getX() && this->getY() == pos.getY();
+		return this->x == pos.x && this->y == pos.y;
 	}
 	__inline bool operator!=(const Position& pos) const {
 		return !(this->operator==(pos));
@@ -130,9 +140,10 @@ public:
 		this->data[this->length - Packet::DEFAULT_HEADER_OFFSET] = toAdd;
 		this->length++;
 	}
-	byte_t getByte(const word_t position) {
-		if (position < this->getLength())
+	byte_t getByte(const word_t position) const {
+		if (position < this->getLength()) {
 			return this->data[position];
+		}
 		return static_cast<BYTE>(-1);
 	}
 
@@ -140,9 +151,11 @@ public:
 		*reinterpret_cast<WORD*>(&this->data[this->length - Packet::DEFAULT_HEADER_OFFSET]) = toAdd;
 		this->length += sizeof(WORD);
 	}
-	word_t getWord(const word_t position) {
-		if (position < this->getLength())
-			return *(reinterpret_cast<WORD*>(&this->data[position]));
+
+	word_t getWord(const word_t position) const {
+		if (position < this->getLength()) {
+			return *((word_t*)&this->data[position]);
+		}
 		return static_cast<WORD>(-1);
 	}
 
@@ -150,19 +163,22 @@ public:
 		*reinterpret_cast<DWORD*>(&this->data[this->length - Packet::DEFAULT_HEADER_OFFSET]) = toAdd;
 		this->length += sizeof(DWORD);
 	}
-	dword_t getDWord(const word_t position) {
-		if (position < this->getLength())
-			return *(reinterpret_cast<DWORD*>(&this->data[position]));
-		return static_cast<DWORD>(-1);
+	dword_t getDWord(const word_t position) const {
+		if (position < this->getLength()) {
+			return *((dword_t*)&this->data[position]);
+		}
+		return static_cast<dword_t>(-1);
 	}
 
 	void addQWord(const qword_t toAdd) {
 		*reinterpret_cast<qword_t*>(&this->data[this->length - Packet::DEFAULT_HEADER_OFFSET]) = toAdd;
 		this->length += sizeof(qword_t);
 	}
-	qword_t getQWord(const word_t position) {
-		if (position < this->getLength())
-			return *(reinterpret_cast<qword_t*>(&this->data[position]));
+
+	qword_t getQWord(const word_t position) const {
+		if (position < this->getLength()) {
+			return *((qword_t*)&this->data[position]);
+		}
 		return static_cast<qword_t>(-1);
 	}
 
@@ -170,9 +186,10 @@ public:
 		*reinterpret_cast<float*>(&this->data[this->length - Packet::DEFAULT_HEADER_OFFSET]) = toAdd;
 		this->length += sizeof(float);
 	}
-	float getFloat(const word_t position) {
-		if (position  < this->getLength())
-			return *(reinterpret_cast<float*>(&this->data[position]));
+	float getFloat(const word_t position) const {
+		if (position < this->getLength()) {
+			return *((float*)&this->data[position]);
+		}
 		return static_cast<float>(-1);
 	}
 
@@ -194,7 +211,7 @@ public:
 		this->addFloat(pos.getY());
 	}
 
-	char* getString(word_t position) { return &this->data[position]; }
+	const char* getString(word_t position) const { return &this->data[position]; }
 
 	word_t getLength() const { return this->length; }
 	word_t getCommand() const { return this->command; }
@@ -296,6 +313,10 @@ public:
 
 	__inline bool isValid() const {
 		return this->getType() != 0 && this->getId() > 0 && this->getAmount() > 0;
+	}
+
+	__inline bool isStackable() const {
+		return this->getType() >= ItemType::CONSUMABLES && this->getType() <= ItemType::QUEST;
 	}
 
 	dword_t toUniqueId() const {

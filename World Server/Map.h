@@ -92,6 +92,14 @@ public:
 		__inline word_t getId() const {
 			return this->id;
 		}
+		/*
+		__inline word_t getIdOnX() const {
+			return this->xId;
+		}
+		__inline word_t getIdOnY() const {
+			return this->yId;
+		}
+		*/
 		__inline bool isActive() const {
 			return this->playerOnMap.size() > 0;
 		}
@@ -133,6 +141,7 @@ private:
 	byte_t id;
 	std::map<word_t, class Entity*> entitiesOnMap;
 	std::map<word_t, class Entity*> playerOnMap;
+	std::map<word_t, class Entity*> invalidEntities;
 
 	std::vector<Sector*> sectors;
 	std::vector<MonsterSpawn*> spawns;
@@ -144,11 +153,11 @@ private:
 	void detectMinMaxSectors(std::vector<VFS::Entry>& entries, word_t* xSector, word_t* ySector);
 	Map::Sector* getBestSector(class Entity* entity) const;
 	Map::Sector* getBestSector(const class Position& pos) const;
+	void Map::getVisibleSectors(Map::Sector* sector, std::map<word_t, Map::Sector*>& ref) const;
 
 	__inline const SectorDimensions& getSectorDescriptor() const {
 		return this->sectorDescriptor;
 	}
-	std::map<word_t, Map::Sector*> getVisibleSectors(Map::Sector*) const;
 public:
 	typedef std::map<word_t, class Entity*>::iterator EntityIterator;
 	typedef std::vector<Sector*>::iterator SectorIterator;
@@ -157,7 +166,7 @@ public:
 	virtual ~Map();
 
 	bool addEntity(class Entity* entity);
-	bool updateEntity(class Entity* entity);
+	bool updateEntity(class Entity* entity) const;
 	void removeEntity(class Entity* entity);
 
 	bool hasEntity(const word_t localId) const;
@@ -182,8 +191,11 @@ public:
 	__inline SectorIterator endSectors() {
 		return this->sectors.end();
 	}
-	__inline Sector* getSector(const byte_t id) const {
+	__inline Sector* getSector(const word_t id) const {
 		return (this->sectors.size() <= id ? nullptr : this->sectors[id]);
+	}
+	__inline const std::map<word_t, Entity*>& getAllEntitiesOnMap() const {
+		return this->entitiesOnMap;
 	}
 
 	__inline byte_t getId() const {
@@ -202,6 +214,12 @@ public:
 		return (!this->isValid() ? 4000 : this->getZoneData()->getSectorSize());
 	}
 	Telegate* getGate(const word_t id);
+
+	void addInvalidEntity(Entity* entity);
+	bool isInvalidEntity(const word_t localId);
+	__inline void clearInvalidEntities() {
+		this->invalidEntities.clear();
+	}
 };
 
 #endif

@@ -2,7 +2,9 @@
 #include "..\WorldServer.h"
 
 NPC::NPC(const word_t npcId, const byte_t mapId, const Position& pos, const float direction) {
-	NPCStance* newStance = new NPCStance();
+	this->getStats()->setStance(new NPCStance());
+
+	auto newStance = this->getStats()->getStance();
 	newStance->setOnStanceChanged([this](byte_t) {
 		Stance* stance = this->getStats()->getStance();
 		if (stance->isWalking()) { 
@@ -13,10 +15,15 @@ NPC::NPC(const word_t npcId, const byte_t mapId, const Position& pos, const floa
 		}
 		this->sendCurrentStance();
 	});
-	this->getStats()->setStance(newStance);
+	this->getStats()->setStance(new NPCStance());
+
+	this->getBasicInformation()->setIngameFlag(true);
+	this->getBasicInformation()->setTeamId(0x01);
 
 	this->getVisuality()->setOnNewSector(nullptr);
 	this->getVisuality()->setOnRemoveSector(nullptr);
+
+	this->getCombatInformation()->getAttackTimer().setWrappingTime(2000);
 
 	this->typeId = npcId;
 	auto server = ROSEServer::getServer<WorldServer>();
@@ -45,11 +52,14 @@ NPC::NPC(const word_t npcId, const byte_t mapId, const Position& pos, const floa
 NPC::~NPC() {
 	delete this->ai;
 	this->ai = nullptr;
+
+	this->owner = nullptr;
 }
 
 void NPC::doAction() {
+	Entity::doAction(); //call parent version first
 	if (this->getPositionInformation()->isIdling()) {
-		if (this->getAI()->isAIReady()) {
+		if (this->getAI()->isAIReady() && this->getCombatInformation()->getTarget() != nullptr) {
 			AI::doRoutine(this, AIP::StateTypes::IDLING, this->getAI()->getData());
 		}
 	}
@@ -66,7 +76,7 @@ bool NPC::sendNewDestinationVisually() {
 	Packet pak(PacketID::World::Response::MOVEMENT_MONSTER);
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addWord(this->getCombatInformation()->getTargetId());
-	pak.addWord(this->getStats()->getMovementSpeed());
+	pak.addWord(static_cast<word_t>(this->getPositionInformation()->getDestination().distanceTo(this->getPositionInformation()->getCurrent())));
 	pak.addPosition(this->getPositionInformation()->getDestination());
 	pak.addWord(0x00); //Z-Axis
 	pak.addByte(this->getStats()->getStance()->getId());

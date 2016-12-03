@@ -7,6 +7,7 @@
 
 #include <random>
 #include <chrono>
+#include <algorithm>
 
 class Randomize {
 private:

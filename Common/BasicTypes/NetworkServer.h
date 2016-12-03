@@ -210,16 +210,12 @@ class NetworkServer : public NetworkInterface {
 		void fillFDS(struct fd_set *set);
 		void addNewClient(SOCKET_TYPE sock, struct sockaddr_in* addr);
 
-		void disconnectClient(NetworkClient* ni) {
-			for(unsigned int i=0;i<clients.size();i++) {
-				if(clients[i] == ni) {
-					this->logger.debug("Found to-disconnect interface in client list.");
-					clients.erase(clients.begin()+i);
-					break;
-				}
-			}
+		void disconnectClient(NetworkClient* ni, std::vector<NetworkClient*>::const_iterator& it) {
+
 			this->logger.info(String("Disconnecting interface from IP: ") + ni->getIp());
 			this->onClientDisconnect(ni);
+
+			it = clients.erase(it);
 
 			delete ni;
 			ni = nullptr;

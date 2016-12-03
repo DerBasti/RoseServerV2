@@ -23,7 +23,7 @@ void ROSESocketClient::onDataReceived(int len) {
 	}
 	DecryptBufferHeader(&this->crypt.status, this->crypt.table, this->getPacket().toUnsignedChar());
 	
-	if (!::DecryptBufferData(this->crypt.table, this->getPacket().toUnsignedChar()) || !this->handlePacket()) {
+	if (!::DecryptBufferData(this->crypt.table, this->getPacket().toUnsignedChar()) || !this->handlePacket(this->getPacket())) {
 		this->setActiveFlag(false);
 	}
 	this->getPacket().newPacket(0x00);

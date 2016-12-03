@@ -104,7 +104,15 @@ void ZON::loadEventInfos(BufferedFileReader& bfr) {
 	}
 }
 void ZON::loadZoneInfos(BufferedFileReader& bfr) {
-	bfr.setCaret(bfr.getCaret() + sizeof(dword_t)*4 + sizeof(float));
+	bfr.setCaret(bfr.getCaret() + sizeof(dword_t));
+
+	dword_t mapHeight = bfr.readDWord();
+	dword_t mapWidth = bfr.readDWord();
+	dword_t patchGridSize = bfr.readDWord();
+
+	float gridSize = bfr.readFloat();
+	float patchSize = gridSize * patchGridSize;
+
 	byte_t centerIfoX = static_cast<byte_t>(bfr.readDWord());
 	byte_t centerIfoY = static_cast<byte_t>(bfr.readDWord());
 

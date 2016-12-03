@@ -3,6 +3,8 @@
 #include "..\WorldServer.h"
 #include "..\..\Common\BasicTypes\Randomizer.h"
 
+
+
 MonsterSpawn::MonsterSpawn(const byte_t idOfMap, const IFO::Spawn& ifoSpawn) : spawn(ifoSpawn) {
 	this->nextSpawnWave = 0;
 	this->mapId = idOfMap;
@@ -52,10 +54,19 @@ void MonsterSpawn::addMonster(const word_t typeId, const Position& pos, const wo
 		this->spawnedMonsters.push_back(newMon);
 	}
 }
+Monster::Monster(const word_t typeId, const byte_t mapId, const Position& pos) : Monster(typeId, mapId, pos, nullptr) {
 
-Monster::Monster(const word_t typeId, const byte_t mapId, const Position& pos, MonsterSpawn* spawnRef) : NPC(typeId, mapId, pos, 0.0f) {
+}
+
+Monster::Monster(const word_t typeId, const byte_t mapId, const Position& pos, MonsterSpawn* spawnRef) : Monster(typeId, mapId, pos, spawnRef, nullptr) {
+
+}
+
+Monster::Monster(const word_t typeId, const byte_t mapId, const Position& pos, MonsterSpawn* spawnRef, Entity* owner) : NPC(typeId, mapId, pos, 0.0f) {
+	this->setOwner(owner);
 	this->spawnReference = spawnRef;
 	this->onSpawn();
+	this->getBasicInformation()->setTeamId(0x100);
 }
 
 Monster::~Monster() {
@@ -63,9 +74,8 @@ Monster::~Monster() {
 		this->getSpawn()->removeMonster(this);
 	}
 	this->spawnReference = nullptr;
-	this->getPositionInformation()->getMap()->removeEntity(this);
 }
 
 void Monster::onDeath() {
-	//?
+	//Give Exp?
 }

@@ -8,6 +8,7 @@
 #include "..\..\Common\BasicTypes\StoppableClock.h"
 #include "..\..\Common\BasicTypes\Observable.h"
 #include "..\Map.h"
+#include <mutex>
 
 typedef unsigned char byte_t;
 typedef unsigned short word_t;
@@ -17,6 +18,7 @@ typedef unsigned long long qword_t;
 class EntityInfo {
 private:
 	word_t localId;
+	word_t teamId;
 	bool ingameFlag;
 	Map::Sector* sector;
 public:
@@ -24,6 +26,7 @@ public:
 	EntityInfo(const word_t localId) {
 		this->localId = localId;
 		this->ingameFlag = false;
+		this->teamId = 0x00;
 	}
 	virtual ~EntityInfo() {}
 
@@ -45,6 +48,12 @@ public:
 	}
 	__inline void setSector(Map::Sector* sector) {
 		this->sector = sector;
+	}
+	__inline word_t getTeamId() const {
+		return this->teamId;
+	}
+	__inline void setTeamId(const word_t teamId) {
+		this->teamId = teamId;
 	}
 };
 
@@ -74,14 +83,14 @@ public:
 		return this->lastCheckTime.timeLap();
 	}
 
-	__inline Position getCurrent() const {
+	__inline const Position& getCurrent() const {
 		return this->current;
 	}
 	__inline void setCurrent(const Position& p) {
 		this->current = p;
 	}
-	__inline Position getDestination() const {
-		return this->dest.getValue();
+	__inline const Position& getDestination() const {
+		return this->dest.getRefValue();
 	}
 	__inline void setOnDestinationAssigned(std::function<void(Position)> func) {
 		this->dest.setOnNewValueAssigned(func);
@@ -244,7 +253,7 @@ public:
 		return this->currentHp;
 	}
 	__inline void setHP(const unsigned long current) {
-		this->currentHp = (this->getHP() + current > this->getMaxHP() ? this->getMaxHP() : this->getHP() + current);
+		this->currentHp = (current > this->getMaxHP() ? this->getMaxHP() : current);
 	}
 	__inline unsigned long getMaxHP() const {
 		return this->maxHp;
@@ -260,7 +269,7 @@ public:
 		return this->currentMp;
 	}
 	__inline void setMP(const unsigned long current) {
-		this->currentMp = (this->getMP() + current > this->getMaxHP() ? this->getMaxHP() : this->getMP() + current);
+		this->currentMp = (current > this->getMaxHP() ? this->getMaxHP() : current);
 	}
 	__inline unsigned long getMaxMP() const {
 		return this->maxMp;
@@ -325,8 +334,10 @@ public:
 };
 
 class Visuality {
+public:
+	const static byte_t MAXIMUM_VISIBLE_SECTORS = 9;
 private:
-	std::map<word_t, Map::Sector*> visibleSectors;
+	Map::Sector* visibleSectors[MAXIMUM_VISIBLE_SECTORS];
 	std::function<void(Map::Sector*)> newSectorFunction;
 	std::function<void(Map::Sector*)> removeSectorFunction;
 
@@ -339,10 +350,6 @@ public:
 		this->setOnRemoveSector(nullptr);
 	}
 	virtual ~Visuality() {
-		std::for_each(this->visibleSectors.begin(), this->visibleSectors.end(), [&](std::pair<const word_t, Map::Sector*> sectorPair) {
-			this->removeSectorFunction(sectorPair.second);
-		});
-		this->visibleSectors.clear();
 	}
 	__inline void setOnNewSector(std::function<void(Map::Sector*)> func) {
 		this->newSectorFunction = (func == nullptr ? this->getEmptyFunction() : func);
@@ -356,12 +363,12 @@ public:
 	void removeSector(Map::Sector* sector) {
 		this->removeSectorFunction(sector);
 	}
-	void update(std::map<word_t, Map::Sector*> newVisibleSectors);
+	void update(std::map<word_t, Map::Sector*>& resultMap);
 	void forceClear();
 	Entity* find(const word_t localId);
 
-	__inline std::map<word_t, Map::Sector*> getVisibleSectors() const {
-		return this->visibleSectors;
+	__inline Map::Sector** getVisibleSectors() {
+		return reinterpret_cast<Map::Sector**>(this->visibleSectors);
 	}
 };
 
@@ -390,8 +397,9 @@ public:
 			}
 	};
 private:
-	class Entity* target;
+	Observable<class Entity*> target;
 	Combat::Type type;
+	WrappingTriggerClock attackTimer;
 public:
 	Combat() {
 		this->target = nullptr;
@@ -409,6 +417,15 @@ public:
 	void clear() {
 		this->target = nullptr;
 		this->type = Combat::Type::NONE;
+		this->attackTimer.stop();
+	}
+
+	WrappingTriggerClock& getAttackTimer() {
+		return this->attackTimer;
+	}
+
+	__inline void setOnNewTarget(std::function<void(Entity*)> f) {
+		this->target.setOnNewValueAssigned(f == nullptr ? [](Entity*){} : f);
 	}
 
 	__inline Combat::Type getType() const {
@@ -419,13 +436,15 @@ public:
 	}
 };
 
-class Entity {
+class Entity : public BasicObject {
 protected:
-	EntityInfo basicIngameInformation;
-	PositionInformation positions;
-	Stats stats;
-	Visuality visuality;
-	Combat combat;
+	EntityInfo* basicIngameInformation;
+	PositionInformation* positions;
+	Stats* stats;
+	Visuality* visuality;
+	Combat* combat;
+
+	virtual void attackRoutine();
 
 	virtual void updateAttackPower() {}
 	virtual void updateMaxHP() {}
@@ -446,55 +465,32 @@ protected:
 
 	virtual bool sendNewDestinationVisually() { return true; }
 	virtual bool sendCurrentStance();
+
+	virtual bool sendNewTarget();
 public:
-	Entity() {
-		auto onNewSectorFunc = [&](Map::Sector* sector) {
-			std::for_each(sector->beginEntities(), sector->endEntities(), [&](std::pair<const word_t, Entity*> entityPair) {
-				Entity* other = entityPair.second;
-				if (other != this && other != nullptr) {
-					this->sendEntityVisuallyAdded(other);
-					other->sendEntityVisuallyAdded(this);
-				}
-			});
-		};
-		auto onRemoveSectorFunc = [&](Map::Sector* sector) {
-			std::for_each(sector->beginEntities(), sector->endEntities(), [&](std::pair<const word_t, Entity*> entityPair) {
-				Entity* other = entityPair.second;
-				if (other != this && other != nullptr) {
-					this->sendEntityVisuallyRemoved(other);
-					other->sendEntityVisuallyRemoved(this);
-				}
-			});
-		};
-		this->getPositionInformation()->setOnDestinationAssigned([this](Position old) {
-			this->sendNewDestinationVisually();
-		});
-		this->getVisuality()->setOnNewSector(onNewSectorFunc);
-		this->getVisuality()->setOnRemoveSector(onRemoveSectorFunc);
-	}
+	Entity();
 	virtual ~Entity();
 
-	__inline PositionInformation* getPositionInformation() {
-		return &this->positions;
+	__inline PositionInformation* getPositionInformation() const {
+		return this->positions;
 	}
-	__inline EntityInfo* getBasicInformation() {
-		return &this->basicIngameInformation;
+	__inline EntityInfo* getBasicInformation() const {
+		return this->basicIngameInformation;
 	}
-	__inline Stats* getStats() {
-		return &this->stats;
+	__inline Stats* getStats() const {
+		return this->stats;
 	}
-	__inline Visuality* getVisuality() {
-		return &this->visuality;
+	__inline Visuality* getVisuality() const {
+		return this->visuality;
 	}
-	__inline Combat* getCombatInformation() {
-		return &this->combat;
+	__inline Combat* getCombatInformation() const {
+		return this->combat;
 	}
 
 	virtual void updateStats();
 	void movementProc();
 
-	virtual void doAction() {
-	}
+	virtual void doAction();
 
 	virtual bool isEnemyOf(Entity* entity) const { return false; }
 
@@ -503,6 +499,11 @@ public:
 	virtual bool isMonster() const { return false; }
 
 	virtual void onDeath() {}
+
+	virtual bool isActive() const {
+		return true;
+	}
+	virtual void addDamage(Entity* dmgDealer, const dword_t damage);
 };
 
 #endif

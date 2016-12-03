@@ -1,22 +1,15 @@
 #include "StoppableClock.h"
 #include <Windows.h>
+#include <iostream>
+#include <chrono>
 
-long long StoppableClock::GetCurrentTimeStamp() {
-	long long result = 0x00;
+unsigned long long StoppableClock::GetCurrentTimeStamp() {
+	unsigned long long result = 0x00;
 #ifdef _MSC_VER
 	SYSTEMTIME st;
 	GetSystemTime(&st);
 
-	std::tm tm;
-	tm.tm_sec = st.wSecond;
-	tm.tm_min = st.wMinute;
-	tm.tm_hour = st.wHour;
-	tm.tm_mday = st.wDay;
-	tm.tm_mon = st.wMonth - 1;
-	tm.tm_year = st.wYear - 1900;
-
-	time_t timeStamp = std::mktime(&tm);
-	result = (timeStamp * 1000) + st.wMilliseconds;
+	result = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 #else
 	struct timeval tp;
 	gettimeofday(&tp, NULL);
@@ -24,4 +17,31 @@ long long StoppableClock::GetCurrentTimeStamp() {
 	result = (current + (tp.tv_usec / 1000));
 #endif
 	return result;
+}
+
+unsigned long long StoppableClock::getDuration() const {
+	if (this->startTimeStamp == 0 || this->pausedWhen != 0) {
+		return 0;
+	}
+	unsigned long long currentTimestamp = StoppableClock::GetCurrentTimeStamp();
+	unsigned long long diff = currentTimestamp - this->startTimeStamp;
+	return diff;
+}
+
+
+unsigned long long StoppableClock::timeLap() {
+	if (this->startTimeStamp == 0 || this->pausedWhen != 0) {
+		return 0;
+	}
+	unsigned long long res = this->getDuration();
+	this->startTimeStamp = StoppableClock::GetCurrentTimeStamp();
+
+	//std::cout << "Result: " << res << ", Start: " << this->startTimeStamp << "\n";
+
+	return res;
+}
+
+void StoppableClock::start() {
+	this->pausedWhen = 0;
+	this->startTimeStamp = StoppableClock::GetCurrentTimeStamp();
 }

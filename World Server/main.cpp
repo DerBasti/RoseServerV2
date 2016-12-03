@@ -3,6 +3,7 @@
 #include "FileTypes\VFS.h"
 #include "FileTypes\IFO.h"
 #include "FileTypes\AIP.h"
+#include "Entities\Entity.h"
 
 
 int main() {
@@ -23,11 +24,13 @@ int main() {
 			IFO ifoData(ifo.getPathInVFS(), ifo.getContent());
 		});
 	}*/
+
 	MYSQL mysql;
 	String workPath = File::GetWorkingDirectory();
 	Config cfg(workPath + String("config.conf"));
 	WorldServer ws(cfg.get("WorldIp", "127.0.0.1"), cfg.get("WorldPort", "29200").toUShort(), &mysql);
 	ws.loadEncryption();
+	ws.setMultiThreaded();
 	ws.start();
 	return 0;
 }

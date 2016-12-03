@@ -165,17 +165,19 @@ bool NetworkServer::setupSocket() {
 }
 
 void NetworkServer::fillFDS(fd_set *set) {
-	std::for_each(clients.begin(), clients.end(), [&, this](NetworkClient* ni) {
+	for (auto it = this->clients.cbegin(); it != this->clients.cend();) {
+		NetworkClient *ni = *it;
 		if (ni->isActive()) {
 			FD_SET(ni->getSocket(), set);
 			if (ni->getSocket() > maxFileDescriptors) {
 				maxFileDescriptors = ni->getSocket();
 			}
+			it++;
 		}
 		else {
-			this->disconnectClient(ni);
+			this->disconnectClient(ni, it);
 		}
-	});
+	}
 }
 
 void NetworkServer::addNewClient(SOCKET_TYPE sock, struct sockaddr_in* addr) {
@@ -220,6 +222,7 @@ void NetworkServer::start() {
 		FD_SET(this->getSocket(), &fds);
 		activity = ::select(static_cast<int>(this->maxFileDescriptors + 1), &fds, nullptr, nullptr, &timeout);
 		if (activity == 0 && clients.empty()) {
+			this->onRequestsFinished();
 			continue;
 		}
 		if (FD_ISSET(this->getSocket(), &fds)) {

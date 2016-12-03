@@ -8,7 +8,7 @@ WorldServer::WorldServer(const String& IP, unsigned short port, MYSQL* mysql) : 
 	this->loadSTB<AISTB>(aiFile, "3DDATA\\STB\\FILE_AI.STB");
 	this->loadSTB<SkillSTB>(skillFile, "3DDATA\\STB\\LIST_SKILL.STB");
 	this->loadSTB<StatusSTB>(statusFile, "3DDATA\\STB\\LIST_STATUS.STB");
-	this->loadSTB<STB>(questFile, "3DDATA\\STB\\LIST_QUEST.STB", false);
+	this->loadSTB<STB>(questFile, "3DDATA\\STB\\LIST_QUESTDATA.STB", false);
 
 	const char* equipFileNames[] = { nullptr, "3DDATA\\STB\\LIST_FACEITEM.STB",
 		"3DDATA\\STB\\LIST_CAP.STB", "3DDATA\\STB\\LIST_BODY.STB",
@@ -20,7 +20,7 @@ WorldServer::WorldServer(const String& IP, unsigned short port, MYSQL* mysql) : 
 		"3DDATA\\STB\\LIST_PAT.STB"
 	};
 	for (unsigned int i = 1; i < 15; i++) {
-		this->loadSTB<STB>(this->equipmentFile[i], equipFileNames[i]);
+		this->loadSTB<EquipmentSTB>(this->equipmentFile[i], equipFileNames[i]);
 	}
 	//this->loadSTB<STB>(craftingFile;
 	//this->loadSTB<STB>(sellFile;
@@ -30,6 +30,7 @@ WorldServer::WorldServer(const String& IP, unsigned short port, MYSQL* mysql) : 
 	this->loadSTB<STB>(warpFile, "3DDATA\\STB\\WARP.STB");
 
 	this->loadAI();
+	this->loadQuestData();
 	this->loadZoneData();
 }
 
@@ -53,6 +54,17 @@ void WorldServer::loadAI() {
 		auto vfsEntry = vfs->getEntry(file);
 		if (vfsEntry.getContent().getSize()>0) {
 			this->aiData[i] = new AIP(vfsEntry.getPathInVFS(), vfsEntry);
+		}
+	}
+}
+
+void WorldServer::onStartup() {
+	if (this->multiThreadedStart) {
+		for (unsigned int i = 0; i < this->maps.size(); i++) {
+			Map* map = this->maps[i];
+			if (map->getZoneData() != nullptr) {
+				this->runningThreads.push_back(std::thread(&WorldServer::doMapActions, this, map));
+			}
 		}
 	}
 }
@@ -107,31 +119,79 @@ void WorldServer::loadIFOs(Map *currentMap, std::vector<VFS::Entry>& ifoFiles) {
 	});
 }
 
+void WorldServer::loadQuestData() {
+	this->questFiles.reserve(questFile->getEntryAmount());
+	this->logger.info("Loading quest data...");
+	for (dword_t i = 0; i < questFile->getEntryAmount(); i++) {
+		String questFilePath = questFile->getEntry(i)->get(0);
+		if (questFilePath.isEmpty()) {
+			continue;
+		}
+		auto entry = vfs->getEntry(questFilePath);
+		QSD* questData = new QSD(static_cast<word_t>(i), questFilePath, entry);
+		this->questFiles.push_back(questData);
+
+		auto questEntries = questData->getQuestEntries();
+		for (dword_t j = 0; j < questData->getQuestEntryAmount(); j++, questEntries++) {
+			auto entry = (*questEntries);
+			auto records = entry->getRecords();
+			for (dword_t k = 0; k < entry->getRecordAmount(); k++, records++) {
+				auto currentRecord = (*records);
+				this->questData.insert(std::pair<dword_t, QSD::Record*>(currentRecord->getQuestHash(), currentRecord));
+			}
+		}
+	}
+}
+
 NetworkClient* WorldServer::onClientConnected(NetworkInterface *iFace) {
-	return new Player(iFace, this->getCryptInfo());
+	Player* player = new Player(iFace, this->getCryptInfo());
+	this->interfaceMapping[player->getNetworkInterface()->getSocket()] = player;
+	return player->getNetworkInterface();
 }
 
 void WorldServer::onRequestsFinished() {
-	std::for_each(this->maps.begin(), this->maps.end(), [this](Map* map) {
-		if (map->isActive()) {
-			std::for_each(map->beginEntities(), map->endEntities(), [&](std::pair<const word_t, Entity*>& p) {
-				auto currentEntity = p.second;
-				currentEntity->movementProc();
-				map->updateEntity(currentEntity);
-				currentEntity->doAction();
-			});
+	if (!this->multiThreadedStart) {
+		Map** mapData = this->maps.data();
+		for (unsigned int i = 0; i < this->maps.size(); i++, mapData++) {
+			this->doMapActions(*mapData);			
 		}
-	});
+	}
 }
 
-void WorldServer::onClientDisconnect(NetworkInterface* iFace) {
-	for (NetworkClient* client : clients) {
-		Player* player = static_cast<Player*>(client);
-		player->getVisuality()->forceClear();
-		Map* map = player->getPositionInformation()->getMap();
-		if (map != nullptr) {
-			map->removeEntity(player);
+void WorldServer::doMapActions(Map* map) {
+	while (this->isActive()) {
+		auto entitiesOnMap = map->getAllEntitiesOnMap();
+		for (auto it = entitiesOnMap.begin(); it != entitiesOnMap.end();) {
+			auto currentEntity = it->second;
+			if (!currentEntity->isActive()) {
+
+				it = entitiesOnMap.erase(it);
+				map->removeEntity(currentEntity);
+
+				delete currentEntity;
+				currentEntity = nullptr;
+
+				continue;
+			}
+			if (currentEntity->isPlayer()) {
+				currentEntity = currentEntity;
+			}
+
+			currentEntity->movementProc();
+			map->updateEntity(currentEntity);
+			currentEntity->doAction();
+			it++;
 		}
-		player->getPositionInformation()->setMap(nullptr);
+		map->clearInvalidEntities();
+		Sleep(20);
+	}
+}
+
+
+void WorldServer::onClientDisconnect(NetworkInterface* iFace) {
+	auto p = this->interfaceMapping[iFace->getSocket()];
+	if (p) {
+		p->invalidateNetworkInterface();
+		this->interfaceMapping.erase(iFace->getSocket());
 	}
 }

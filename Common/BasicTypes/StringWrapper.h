@@ -323,6 +323,10 @@ public:
 		return this->findLastOf(buf);
 	}
 
+	bool contains(const char token) const {
+		char data[] = { token, 0x00 };
+		return this->contains(data);
+	}
 	bool contains(const char* token) const {
 		return this->contains(token, false);
 	}
@@ -355,6 +359,10 @@ public:
 		return false;
 	}
 
+	bool contentEquals(const char c) const {
+		char data[] = { c, 0x00 };
+		return contentEquals(data);
+	}
 	bool contentEquals(const char* str) const {
 		size_t len = this->getSafeSize(str);
 		if (len == INVALID_LENGTH || len != this->getLength()) {
@@ -508,8 +516,14 @@ public:
 	static String fromHex(const unsigned long val) {
 		return internalFromConverter<unsigned long>("0x%x", val);
 	}
+	static String fromHex(void *ptr) {
+		return internalFromConverter<void*>("0x%x", ptr);
+	}
 	static String fromInt(const unsigned long val) {
 		return internalFromConverter<unsigned long>("%d", val);
+	}
+	static String fromFloat(const float val) {
+		return internalFromConverter<float>("%.2f", val);
 	}
 };
 

@@ -11,6 +11,8 @@
 #include <initializer_list>
 #include <tuple>
 
+#include "StringWrapper.h"
+
 template<class ClassToBind, class IdType, class SetFunction = void (ClassToBind::*)(const IdType t), class GetFunction = IdType(ClassToBind::*)() const>
 class FunctionBinder {
 private:
@@ -18,6 +20,11 @@ private:
 	std::map<IdType, SetFunction> setFunctions;
 public:
 	FunctionBinder() {}
+	FunctionBinder(std::initializer_list<std::pair<IdType, GetFunction>> getFunctions) {
+		std::for_each(getFunctions.begin(), getFunctions.end(), [&](std::pair<IdType, GetFunction> pair) {
+			this->getFunctions[pair.first] = pair.second;
+		});
+	}
 	FunctionBinder(std::initializer_list<std::pair<IdType, SetFunction>> setFunctions) {
 		std::for_each(setFunctions.begin(), setFunctions.end(), [&](std::pair<IdType, SetFunction> pair) {
 			this->setFunctions[pair.first] = pair.second;
@@ -63,7 +70,7 @@ public:
 	}
 };
 
-template<class IdType, class SetFunction = void(*)(const IdType t), class GetFunction = IdType(*)() const>
+template<class IdType, class SetFunction = void(*)(const IdType t), class GetFunction = IdType(*)()>
 using StaticFunctionBinder = FunctionBinder<void*, IdType, SetFunction, GetFunction>;
 
 template<class ClassToBind>
@@ -102,9 +109,21 @@ public:
 	}
 	template<class _X>
 	_X get(unsigned long overrideLen = 0) {
-		_X currentData = *((_X*)(this->data + this->caret));
-		this->caret += sizeof(_X);
+		dword_t size = sizeof(_X);
+		_X currentData = *((_X*)(this->data));
+		this->caret += size;
+		this->data += size;
 		return currentData;
+	}
+	String getString(const unsigned long len) {
+		String result = String();
+		for (unsigned int i = 0; i < len; i++) {
+			result += get<byte_t>();
+		}
+		return result;
+	}
+	void addToCaret(const unsigned long pos) {
+		this->caret += pos;
 	}
 };
 
