@@ -171,7 +171,11 @@ public:
 		});
 	}
 	virtual void start() {
+		this->start(0);
+	}
+	void start(unsigned long long offset) {
 		WrappingStoppableClock::start();
+		this->startTimeStamp -= offset;
 		this->currentTrigger = 0;
 	}
 	
@@ -179,6 +183,10 @@ public:
 		unsigned long long realDuration = WrappingStoppableClock::timeLap();
 		checkForTrigger(realDuration);
 		return realDuration;
+	}
+
+	void update() {
+		this->getDuration();
 	}
 
 	virtual unsigned long long getDuration() {
