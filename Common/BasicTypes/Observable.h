@@ -11,11 +11,14 @@ template<class _T, class = typename std::enable_if<std::is_assignable<_T&, const
 		_T value;
 		std::function<void(const _T&)> onNewValue;
 		std::function<void(const _T)> onValueChange;
-
+		bool triggerOnce;
+		unsigned long triggerCount;
 	public:
 		Observable() {
 			this->onNewValue = [](const _T&){};
 			this->onValueChange = [](const _T) {};
+			triggerOnce = false;
+			triggerCount = 0;
 		}
 
 		Observable(const _T& val) : Observable() {
@@ -25,10 +28,16 @@ template<class _T, class = typename std::enable_if<std::is_assignable<_T&, const
 		}
 
 		__inline Observable& operator=(const _T& val) {
-			this->onNewValue(val);
+			this->triggerCount++;
+			if (!triggerOnce || (this->triggerCount <= 1 && triggerOnce)) {
+				this->onNewValue(val);
+			}
 			const _T oldValue = this->value;
 			this->value = val;
-			this->onValueChange(oldValue);
+			if (!triggerOnce || (this->triggerCount <= 1 && triggerOnce)) {
+				this->onValueChange(oldValue);
+			}
+			this->triggerCount--;
 			return (*this);
 		}
 
@@ -65,6 +74,9 @@ template<class _T, class = typename std::enable_if<std::is_assignable<_T&, const
 		}
 		__inline const _T& getRefValue() const {
 			return this->value;
+		}
+		__inline void setTriggerListenerOnce(bool flag) {
+			this->triggerOnce = flag;
 		}
 };
 
