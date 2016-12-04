@@ -59,7 +59,7 @@ NPC::~NPC() {
 void NPC::doAction() {
 	Entity::doAction(); //call parent version first
 	if (this->getPositionInformation()->isIdling()) {
-		if (this->getAI()->isAIReady() && this->getCombatInformation()->getTarget() != nullptr) {
+		if (this->getAI()->isAIReady() && this->getCombatInformation()->getTarget() == nullptr) {
 			AI::doRoutine(this, AIP::StateTypes::IDLING, this->getAI()->getData());
 		}
 	}
