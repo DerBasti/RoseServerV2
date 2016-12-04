@@ -290,7 +290,7 @@ class Character {
 private:
 	String name;
 	dword_t id;
-	dword_t experience;
+	Observable<dword_t> experience;
 	word_t jobId;
 	word_t statPoints;
 	word_t skillPoints;
@@ -301,7 +301,9 @@ private:
 	Inventory inventory;
 
 public:
-	Character() {}
+	Character() {
+		experience.setTriggerListenerOnce(true);
+	}
 	virtual ~Character() {}
 
 	__inline dword_t getId() const {
@@ -317,10 +319,13 @@ public:
 		this->name = newName;
 	}
 	__inline dword_t getExperience() const {
-		return this->experience;
+		return this->experience.getValue();
 	}
 	__inline void setExperience(const dword_t exp) {
 		this->experience = exp;
+	}
+	__inline void setOnExperienceAdded(std::function<void(dword_t)> f)  {
+		this->experience.setOnNewValueAssigned(f == nullptr ? [](dword_t){} : f);
 	}
 	__inline word_t getJobId() const {
 		return this->jobId;
@@ -695,6 +700,8 @@ private:
 
 	ROSESocketClient* networkInterface;
 
+	dword_t getExpForLevelUp() const;
+
 	void updateAttributes();
 
 	void updateStrength();
@@ -727,6 +734,8 @@ private:
 	bool sendWeightPercentage();
 	bool sendTeleport();
 	bool sendBasicAttack();
+	bool sendExperienceUpdate();
+	bool sendLevelUp();
 
 	bool sendEntityVisuallyAdded(Entity* entity);
 	bool sendPlayerVisuallyAdded(Entity* entity, Packet& pak);
@@ -793,6 +802,8 @@ private:
 public:
 	static void teleport(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
 	static void currentPosition(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
+	static void setExp(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
+	static void setLevel(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
 };
 
 #endif

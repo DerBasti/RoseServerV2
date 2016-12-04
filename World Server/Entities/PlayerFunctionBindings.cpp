@@ -15,7 +15,9 @@ FunctionBinder<Player, unsigned long, bool(Player::*)(const Packet&)> Player::PA
 
 StaticFunctionBinder < String, void(*)(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens)> GM_FUNCTIONS = {
 	{ String("/tele"), &GMService::teleport },
-	{ String("/where"), &GMService::currentPosition }
+	{ String("/where"), &GMService::currentPosition },
+	{ String("/exp"), &GMService::setExp },
+	{ String("/level"), &GMService::setLevel }
 };
 
 
@@ -181,4 +183,23 @@ void GMService::currentPosition(Player* cmdExecutor, SharedArrayPtr<String>& cmd
 		message += String(" @invalid Sector.");
 	}
 	cmdExecutor->sendDebugMessage(message);
+}
+
+void GMService::setExp(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens) {
+	if (cmdAsTokens.getSize() < 2) {
+		return;
+	}
+	dword_t newExp = cmdAsTokens.at(1).toUInt();
+	cmdExecutor->getCharacter()->setExperience(newExp);
+}
+void GMService::setLevel(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens) {
+	if (cmdAsTokens.getSize() < 2) {
+		return;
+	}
+	word_t newLevel = cmdAsTokens.at(1).toUShort();
+	if (newLevel > 250) {
+		newLevel = 250;
+	}
+	cmdExecutor->getStats()->setLevel(newLevel);
+	cmdExecutor->getCharacter()->setExperience(0);
 }

@@ -9,6 +9,19 @@ Player::Player(NetworkInterface* iFace, const CryptInfo& cryptInfo) {
 	this->accountInfo = new Account();
 	this->attributes = new Attributes();
 	this->character = new Character();
+	this->getCharacter()->setOnExperienceAdded([this](dword_t) {
+		this->sendExperienceUpdate();
+		while (this->getCharacter()->getExperience() >= this->getExpForLevelUp()) {
+			dword_t newExp = this->getCharacter()->getExperience() - this->getExpForLevelUp();
+			this->getCharacter()->setExperience(newExp);
+			this->getStats()->setToNextLevel();
+		}
+		this->updateStats();
+		this->getStats()->setHP(this->getStats()->getMaxHP());
+	});
+	this->getStats()->setOnLevelUp([this](word_t) {
+		this->sendLevelUp();
+	});
 	this->questJournal = new QuestJournal();
 
 	this->getCombatInformation()->getAttackTimer().setWrappingTime(1000);
@@ -56,6 +69,27 @@ void Player::onDisconnect() {
 
 void Player::doAction() {
 	Entity::doAction(); //call basic version first.
+}
+
+dword_t Player::getExpForLevelUp() const {
+	dword_t result = 0x00;
+	word_t level = this->getStats()->getLevel();
+	if (level <= 15) {
+		result = static_cast<dword_t>((level + 10) * (level + 5) * (level + 3) * 0.7);
+	}
+	else if (level <= 50) {
+		result = static_cast<dword_t>((level - 5) * (level + 2) * (level + 2) * 2.2);
+	}
+	else if (level <= 100) {
+		result = static_cast<dword_t>((level - 38) * (level - 5) * (level + 2) * 9);
+	}
+	else if (level <= 139) {
+		result = static_cast<dword_t>((level + 220) * (level + 34) * (level + 22));
+	}
+	else {
+		result = static_cast<dword_t>((level - 126) * (level - 15) * (level + 7) * 41);
+	}
+	return result;
 }
 
 bool Player::loadEntireCharacter() {
@@ -452,6 +486,27 @@ bool Player::sendMonsterHP(Entity* mon) {
 	pak.addWord(mon->getBasicInformation()->getLocalId());
 	pak.addDWord(mon->getStats()->getHP());
 	return this->getNetworkInterface()->sendPacket(pak);
+}
+
+bool Player::sendExperienceUpdate() {
+	Packet pak(PacketID::World::Response::UPDATE_EXPERIENCE);
+	pak.addDWord(this->getCharacter()->getExperience());
+	pak.addWord(this->getStats()->getStamina());
+	pak.addWord(0x00); //dword_t Stamina?
+	return this->getNetworkInterface()->sendPacket(pak);
+}
+
+bool Player::sendLevelUp() {
+	Packet pak(PacketID::World::Response::LEVEL_UP);
+	pak.addWord(this->getBasicInformation()->getLocalId());
+	pak.addWord(this->getStats()->getLevel());
+	pak.addDWord(this->getCharacter()->getExperience());
+	pak.addWord(this->getCharacter()->getStatPoints());
+	pak.addWord(this->getCharacter()->getSkillPoints());
+	
+	Packet visPak(PacketID::World::Response::LEVEL_UP);
+	visPak.addWord(this->getBasicInformation()->getLocalId());
+	return this->getNetworkInterface()->sendPacket(pak) && this->sendToVisible(visPak, this);
 }
 
 bool Player::handlePacket(const Packet& pak) {
