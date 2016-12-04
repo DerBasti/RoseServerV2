@@ -263,6 +263,7 @@ public:
 	Item(const byte_t type, const word_t id, const dword_t amount) {
 		this->clear();
 		this->amount = amount;
+		this->amount.setTriggerListenerOnce(true);
 		this->amount.setOnNewValueAssigned([&](const dword_t) {
 			if (this->amount.getValue() == 0) {
 				this->clear();
@@ -375,9 +376,7 @@ public:
 		this->durability = 0x30;
 		this->lifespan = 1000;
 		this->refine = this->gem = this->stats = 0x00;
-		if (this->amount > 0) {
-			this->amount = 0x00;
-		}
+		this->amount = 0x00;
 	}
 };
 
