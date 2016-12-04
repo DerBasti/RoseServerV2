@@ -167,8 +167,8 @@ bool AI::Condition::HasEnoughTargets(NPC* npc, const AI::Condition* condition, A
 	DataInterpreter<const char> reader(condition->getData(), condition->getLength());
 	dword_t distance = reader.get<dword_t>();
 	bool needsAlliedEntity = reader.get<word_t>() > 0;
-	word_t levelMin = reader.get<word_t>();
-	word_t levelMax = reader.get<word_t>();
+	short levelMin = reader.get<short>();
+	short levelMax = reader.get<short>();
 	word_t necessaryAmount = reader.get<word_t>();
 
 	float nearest = 999999.0f;
