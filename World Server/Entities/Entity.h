@@ -214,7 +214,7 @@ public:
 
 class Stats {
 protected:
-	word_t level;
+	Observable<word_t> level;
 	dword_t currentHp;
 	dword_t maxHp;
 
@@ -275,10 +275,16 @@ public:
 		return this->maxMp;
 	}
 	__inline word_t getLevel() const {
-		return this->level;
+		return this->level.getValue();
 	}
 	__inline void setLevel(const word_t level) {
 		this->level = level;
+	}
+	__inline void setToNextLevel() {
+		this->level = this->level + 1;
+	}
+	__inline void setOnLevelUp(std::function<void(word_t)> f) {
+		this->level.setOnNewValueAssigned(f == nullptr ? [](word_t){} : f);
 	}
 	__inline word_t getAccuracy() const {
 		return this->accuracy;
@@ -456,6 +462,7 @@ protected:
 	virtual void updateAttackRange() {}
 
 	bool sendToVisible(const Packet& pak);
+	bool sendToVisible(const Packet& pak, Entity* exception);
 	virtual bool sendEntityVisuallyAdded(Entity* entity) { return true; }
 	virtual bool sendPlayerVisuallyAdded(Entity* entity, Packet& pak) { return true; }
 	virtual bool sendNPCVisuallyAdded(Entity* entity, Packet& pak) { return true; }
@@ -492,7 +499,7 @@ public:
 
 	virtual void doAction();
 
-	virtual bool isEnemyOf(Entity* entity) const { return false; }
+	virtual bool isEnemyOf(Entity* entity) const { return (entity == nullptr ? false : this->getBasicInformation()->getTeamId() != entity->getBasicInformation()->getTeamId()); }
 
 	virtual bool isPlayer() const { return false; }
 	virtual bool isNPC() const { return false; }

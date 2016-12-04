@@ -90,20 +90,17 @@ void Entity::movementProc() {
 	distance -= threshold; //distance gets reduced by the actual reach (e.g. weapon range)
 	auto& attackTimer = this->getCombatInformation()->getAttackTimer();
 	if (distance <= 0.1f) {
-		if (attackTimer.isRunning()) {
-			attackTimer.getDuration();
-		}
-		else {
+		if (!attackTimer.isRunning() && isTargetValid) {
 			//Assume we are in reach of the enemy (if there is one).
-			if (isTargetValid) {
-				attackTimer.start();
-			}
+			attackTimer.start();
 		}
+		attackTimer.update();
 		this->getPositionInformation()->updateDuration();
 		return;
 	}
 	else if (attackTimer.isRunning() && distance > 0.1f) {
 		attackTimer.softStop();
+		attackTimer.update();
 		this->getPositionInformation()->updateDuration();
 		return;
 	}
@@ -111,10 +108,14 @@ void Entity::movementProc() {
 	float timePassed = static_cast<float>(this->getPositionInformation()->updateDuration()); //should never take longer than MAX_FLOAT
 	float necessaryTime = (distance / static_cast<float>(this->getStats()->getMovementSpeed())) * 1000.0f;
 	if (timePassed >= necessaryTime) {
-		timePassed = (necessaryTime + 1.0f);
 		if (isTargetValid) {
-			attackTimer.start();
+			attackTimer.start(timePassed - necessaryTime); //
 		}
+		else {
+			this->getPositionInformation()->setCurrent(this->getPositionInformation()->getDestination());
+			return;
+		}
+		timePassed = necessaryTime;
 	}
 	float pathTraveled = timePassed * static_cast<float>(this->getStats()->getMovementSpeed()) / 1000.0f;
 	Position ratio = (dest - current).normalize();
@@ -235,16 +236,20 @@ word_t Combat::getTargetId() const {
 }
 
 bool Entity::sendToVisible(const Packet& pak) {
+	return this->sendToVisible(pak, nullptr);
+}
+
+bool Entity::sendToVisible(const Packet& pak, Entity* exception) {
 	bool result = true;
 	auto visibleSectors = this->getVisuality()->getVisibleSectors();
-	for (unsigned int i = 0; i < Visuality::MAXIMUM_VISIBLE_SECTORS;i++, visibleSectors++) {
+	for (unsigned int i = 0; i < Visuality::MAXIMUM_VISIBLE_SECTORS; i++, visibleSectors++) {
 		Map::Sector *sector = *visibleSectors;
 		if (!sector) {
 			continue;
 		}
 		std::for_each(sector->beginPlayer(), sector->endPlayer(), [&](std::pair<const word_t, Entity*> otherPair) {
 			Player *player = static_cast<Player*>(otherPair.second);
-			if (player->isActive() && player->getBasicInformation()->isIngame()) {
+			if (player->isActive() && player->getBasicInformation()->isIngame() && player != exception) {
 				result &= player->getNetworkInterface()->sendPacket(pak);
 			}
 		});
