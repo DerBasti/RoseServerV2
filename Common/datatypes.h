@@ -52,8 +52,15 @@ public:
 		return ::sqrtf(x2 + y2);
 	}
 
-	Position normalize() {
-		return Position(x / toLength(), y / toLength());
+	void normalize() {
+		float length = this->toLength();
+		this->x /= length;
+		this->y /= length;
+	}
+
+	__inline Position normalizeEx() const {
+		float length = this->toLength();
+		return Position(x / length, y / length);
 	}
 
 	__inline bool operator==(const Position& pos) const {
@@ -68,6 +75,10 @@ public:
 	}
 	__inline float getY() const {
 		return this->y;
+	}
+
+	__inline String toString() const {
+		return String("X: ") + String::fromFloat(x) + String(", Y: ") + String::fromFloat(y);
 	}
 };
 
