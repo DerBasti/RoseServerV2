@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <tuple>
+#include <vector>
 
 #include "StringWrapper.h"
 
