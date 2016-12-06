@@ -480,7 +480,7 @@ void AI::Action::MoveToTarget(NPC* entity, const AI::Action* action, AI::Informa
 	byte_t stance = reader.get<byte_t>();
 	auto target = (transfer->getFoundTarget() == nullptr ? entity->getCombatInformation()->getTarget() : transfer->getFoundTarget());
 	auto currentPos = target->getPositionInformation()->getCurrent();
-	Position positionRatios = (currentPos - entity->getPositionInformation()->getCurrent()).normalize();
+	Position positionRatios = (currentPos - entity->getPositionInformation()->getCurrent()).normalizeEx();
 
 	Position destination(currentPos.getX() + (Randomize::GetFloat(-wantedDistance, wantedDistance) * positionRatios.getX()),
 		currentPos.getY() + (Randomize::GetFloat(-wantedDistance, wantedDistance) * positionRatios.getY()));

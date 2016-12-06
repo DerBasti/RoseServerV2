@@ -17,7 +17,8 @@ StaticFunctionBinder < String, void(*)(Player* cmdExecutor, SharedArrayPtr<Strin
 	{ String("/tele"), &GMService::teleport },
 	{ String("/where"), &GMService::currentPosition },
 	{ String("/exp"), &GMService::setExp },
-	{ String("/level"), &GMService::setLevel }
+	{ String("/level"), &GMService::setLevel },
+	{ String("/target"), &GMService::targetInformation }
 };
 
 
@@ -50,7 +51,7 @@ bool Player::pakAssignId(const Packet& receivedPacket) {
 	pak.addDWord(this->getBasicInformation()->getTeamId());
 	this->getBasicInformation()->setIngameFlag(true);
 
-	return this->getNetworkInterface()->sendPacket(pak) && this->sendWeightPercentage() && this->sendCurrentStance();
+	return this->sendPacket(pak) && this->sendWeightPercentage() && this->sendCurrentStance();
 }
 bool Player::pakIdentify(const Packet& receivedPacket) {
 	this->getAccountInfo()->setId(receivedPacket.getDWord(0x00));
@@ -192,6 +193,7 @@ void GMService::setExp(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens)
 	dword_t newExp = cmdAsTokens.at(1).toUInt();
 	cmdExecutor->getCharacter()->setExperience(newExp);
 }
+
 void GMService::setLevel(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens) {
 	if (cmdAsTokens.getSize() < 2) {
 		return;
@@ -202,4 +204,8 @@ void GMService::setLevel(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsToken
 	}
 	cmdExecutor->getStats()->setLevel(newLevel);
 	cmdExecutor->getCharacter()->setExperience(0);
+}
+
+void GMService::targetInformation(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens) {
+	cmdExecutor->getDebuggingFlags().setPrintTargetPosition(true);
 }

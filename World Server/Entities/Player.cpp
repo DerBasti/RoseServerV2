@@ -16,11 +16,11 @@ Player::Player(NetworkInterface* iFace, const CryptInfo& cryptInfo) {
 			this->getCharacter()->setExperience(newExp);
 			this->getStats()->setToNextLevel();
 		}
-		this->updateStats();
-		this->getStats()->setHP(this->getStats()->getMaxHP());
 	});
 	this->getStats()->setOnLevelUp([this](word_t) {
 		this->sendLevelUp();
+		this->updateStats();
+		this->getStats()->setHP(this->getStats()->getMaxHP());
 	});
 	this->questJournal = new QuestJournal();
 
@@ -58,6 +58,9 @@ Player::~Player() {
 
 	delete this->questJournal;
 	this->questJournal = nullptr;
+
+	delete this->networkInterface;
+	this->networkInterface = nullptr;
 }
 
 void Player::onDisconnect() {
@@ -67,8 +70,35 @@ void Player::onDisconnect() {
 	}
 }
 
+bool Player::sendPacket(const Packet& pak) {
+	this->socketMutex.lock();
+	bool result = this->networkInterface != nullptr ? this->networkInterface->sendPacket(pak) : false;
+	this->socketMutex.unlock();
+	return result;
+}
+
 void Player::doAction() {
 	Entity::doAction(); //call basic version first.
+}
+
+void Player::setAttackMotion() {
+	auto server = ROSEServer::getServer<WorldServer>();
+	auto weaponSTB = server->getEquipmentSTB(ItemType::WEAPON);
+
+	word_t motionType = weaponSTB->getMotionId(this->getCharacter()->getInventory()->get(Inventory::Slots::WEAPON).getId());
+	word_t animationId = 0x00;
+	auto combatType = this->getCombatInformation()->getType();
+	if (combatType == Combat::Type::NORMAL) {
+		animationId = ItemType::WEAPON;
+	}
+	else if (combatType == Combat::Type::SKILL) {
+		animationId = 0x00; //TODO
+	}
+	this->currentAnimation = server->getPlayerMotion(animationId, motionType);
+	if (this->currentAnimation != nullptr) {
+		this->sendDebugMessage(String("Entire attack takes: ") + String::fromInt(this->currentAnimation->getDefaultPlayoutTime()) + String("ms"));
+	}
+	Entity::setAttackMotion();
 }
 
 dword_t Player::getExpForLevelUp() const {
@@ -188,14 +218,14 @@ bool Player::sendEncryption() {
 	pak.addByte(0x00); //??
 	pak.addDWord(0x87654321); //Encryption
 	pak.addDWord(0x00);
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendGamingPlan() {
 	Packet pak(PacketID::World::Response::GAMING_PLAN);
 	pak.addWord(0x1001); //?
 	pak.addDWord(0x02); //Unlimited plan
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendPlayerInformation() {
@@ -262,7 +292,7 @@ bool Player::sendPlayerInformation() {
 	pak.addDWord(this->getCharacter()->getId());
 	pak.addString(this->getCharacter()->getName());
 
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendInventory() {
@@ -276,7 +306,7 @@ bool Player::sendInventory() {
 		pak.addWord(inventory->get(i).getPacketHeader());
 		pak.addDWord(inventory->get(i).getPacketData());
 	}
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 
@@ -323,7 +353,7 @@ bool Player::sendQuestData() {
 	for (unsigned int i = 0; i < 0x10; i++) {
 		pak.addDWord(this->getQuestJournal()->getGlobalFlag<dword_t>(i)); //Quest Flags
 	}
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 
@@ -332,7 +362,7 @@ bool Player::sendWeightPercentage() {
 	Packet pak (PacketID::World::Response::WEIGHT);
 	pak.addWord(this->getBasicInformation()->getLocalId());
 	pak.addByte(0x00); //WEIGHT PERCENT
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 
@@ -346,7 +376,7 @@ bool Player::sendTeleport(const byte_t mapId, const Position& pos) {
 	pak.addWord(mapId);
 	pak.addPosition(pos);
 	pak.addWord(0x01); //Z axus
-	if (!this->getNetworkInterface()->sendPacket(pak)) {
+	if (!this->sendPacket(pak)) {
 		return false;
 	}
 	this->getBasicInformation()->setIngameFlag(false);
@@ -410,7 +440,7 @@ bool Player::sendPlayerVisuallyAdded(Entity* entity, Packet& pak) {
 	Player* other = static_cast<Player*>(entity);
 	pak.addByte(other->getCharacter()->getAppearance()->getSex());
 	pak.addWord(other->getStats()->getMovementSpeed());
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendNPCVisuallyAdded(Entity* entity, Packet& pak) {
@@ -422,7 +452,7 @@ bool Player::sendNPCVisuallyAdded(Entity* entity, Packet& pak) {
 	pak.addWord(npc->getTypeId() - 900); //Conversation Id
 	pak.addFloat(npc->getDirection());
 	pak.addWord(0x00);
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendMonsterVisuallyAdded(Entity* entity, Packet& pak) {
@@ -432,18 +462,18 @@ bool Player::sendMonsterVisuallyAdded(Entity* entity, Packet& pak) {
 	Monster* mon = static_cast<Monster*>(entity);
 	pak.addWord(mon->getTypeId());
 	pak.addWord(0x00); //?
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendEntityVisuallyRemoved(Entity* entity) {
 	//only here is a check concerning the network interface necessary
 	//When the client DCs he wants to clear his vision -> interface deleted -> nullpointer
-	if (!entity || this->getNetworkInterface() == nullptr) {
+	if (!entity || this->networkInterface == nullptr) {
 		return false;
 	}
 	Packet pak(PacketID::World::Response::REMOVE_VISIBLE_ENTITY);
 	pak.addWord(entity->getBasicInformation()->getLocalId());
- 	return this->getNetworkInterface()->sendPacket(pak);
+ 	return this->sendPacket(pak);
 }
 
 bool Player::sendNewDestinationVisually() {
@@ -475,7 +505,7 @@ bool Player::sendWhisper(const String& name, const String& msg) {
 	Packet pak(PacketID::World::Response::WHISPER_CHAT);
 	pak.addString(name);
 	pak.addString(msg);
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendMonsterHP(Entity* mon) {
@@ -485,7 +515,7 @@ bool Player::sendMonsterHP(Entity* mon) {
 	Packet pak(PacketID::World::Response::SHOW_MONSTER_HP);
 	pak.addWord(mon->getBasicInformation()->getLocalId());
 	pak.addDWord(mon->getStats()->getHP());
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendExperienceUpdate() {
@@ -493,7 +523,7 @@ bool Player::sendExperienceUpdate() {
 	pak.addDWord(this->getCharacter()->getExperience());
 	pak.addWord(this->getStats()->getStamina());
 	pak.addWord(0x00); //dword_t Stamina?
-	return this->getNetworkInterface()->sendPacket(pak);
+	return this->sendPacket(pak);
 }
 
 bool Player::sendLevelUp() {
@@ -506,7 +536,7 @@ bool Player::sendLevelUp() {
 	
 	Packet visPak(PacketID::World::Response::LEVEL_UP);
 	visPak.addWord(this->getBasicInformation()->getLocalId());
-	return this->getNetworkInterface()->sendPacket(pak) && this->sendToVisible(visPak, this);
+	return this->sendPacket(pak) && this->sendToVisible(visPak, this);
 }
 
 bool Player::handlePacket(const Packet& pak) {

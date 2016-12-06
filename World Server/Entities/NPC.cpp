@@ -68,6 +68,12 @@ void NPC::doAction() {
 	}
 }
 
+void NPC::setAttackMotion() {
+	auto server = ROSEServer::getServer<WorldServer>();
+	this->currentAnimation = server->getNPCAnimation(this->getTypeId(), CHR::MotionType::ATTACK);
+	Entity::setAttackMotion();
+}
+
 void NPC::onSpawn() {
 	AI::doRoutine(this, AIP::StateTypes::SPAWNED, this->getAI()->getData());
 }

@@ -76,6 +76,8 @@ protected:
 	virtual void updateMovementSpeed();
 	virtual void updateAttackSpeed();
 	virtual void updateAttackRange();
+
+	virtual void setAttackMotion();
 public:
 	NPC() {}
 	NPC(const word_t npcId, const byte_t mapId, const Position& pos, const float direction);
@@ -109,6 +111,8 @@ public:
 	__inline word_t getOwnerId() const {
 		return (this->getOwner() == nullptr ? 0x00 : this->getOwner()->getBasicInformation()->getLocalId());
 	}
+
+	float getSize() const { return this->getNPCData() != nullptr ? this->getNPCData()->get(NPCSTB::Columns::SIZE_COLUMN).toFloat() : 100.0f; }
 };
 
 #endif //__ROSE_NPC__

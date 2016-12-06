@@ -11,7 +11,7 @@ private:
 	Packet packet; 
 	std::function<bool(const Packet&)> onHandlePacketTrigger;
 protected:
-	ROSESocketClient() {}
+	ROSESocketClient() {	}
 
 	void onDataReceived(int length);
 	__inline CryptInfo getCryptInfo() {
@@ -34,7 +34,7 @@ public:
 		this->onHandlePacketTrigger = (f == nullptr ? [](const Packet&) -> bool { return false; } : f);
 	}
 
-	bool sendPacket(const Packet& p);
+	virtual bool sendPacket(const Packet& p);
 
 	virtual bool handlePacket(const Packet& pak) {
 		return this->onHandlePacketTrigger(pak);

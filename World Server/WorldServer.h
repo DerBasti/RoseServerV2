@@ -8,6 +8,7 @@
 #include "..\Common\ROSESocketServer.h"
 #include "FileTypes\STB.h"
 #include "FileTypes\VFS.h"
+#include "FileTypes\CHR.h"
 #include "FileTypes\AIP.h"
 #include "FileTypes\QSD.h"
 #include "Map.h"
@@ -27,6 +28,9 @@ class WorldServer : public ROSEServer {
 		std::shared_ptr<STB> motionFile;
 		std::shared_ptr<STB> dropFile;
 		std::shared_ptr<STB> warpFile;
+
+		std::shared_ptr<CHR> chrFile;
+		std::vector<ZMO*> playerAnimations;
 
 		std::vector<Map*> maps;
 		std::map<word_t, AIP*> aiData;
@@ -51,6 +55,7 @@ class WorldServer : public ROSEServer {
 		void loadZoneData();
 		void loadIFOs(Map *currentMap, std::vector<VFS::Entry>& ifoFiles);
 		void loadQuestData();
+		void loadAnimationData();
 
 		void doMapActions(Map* map);
 	public:
@@ -74,6 +79,19 @@ class WorldServer : public ROSEServer {
 
 		__inline EquipmentSTB* getEquipmentSTB(const byte_t itemType) {
 			return (itemType == 0 || itemType > ItemType::PAT) ? nullptr : this->equipmentFile[itemType].get();
+		}
+
+		__inline CHR* getCHRFile() const {
+			return this->chrFile.get();
+		}
+
+		__inline ZMO* getNPCAnimation(const word_t typeId, const byte_t motionType) const {
+			return this->chrFile->getMotion(typeId, motionType);
+		}
+
+		__inline ZMO* getPlayerMotion(const word_t animationId, const byte_t motionType) const {
+			word_t motionId = this->motionFile->getEntry(animationId)->get(motionType).toUShort();
+			return this->playerAnimations[motionId];
 		}
 
 		__inline NPCSTB* getNPCSTB() const {

@@ -32,6 +32,7 @@ WorldServer::WorldServer(const String& IP, unsigned short port, MYSQL* mysql) : 
 	this->loadAI();
 	this->loadQuestData();
 	this->loadZoneData();
+	this->loadAnimationData();
 }
 
 WorldServer::~WorldServer() {
@@ -43,6 +44,11 @@ WorldServer::~WorldServer() {
 		delete pair.second;
 		pair.second = nullptr;
 	});
+	std::for_each(this->playerAnimations.begin(), this->playerAnimations.end(), [](ZMO* zmo) {
+		delete zmo;
+		zmo = nullptr;
+	});
+	this->playerAnimations.clear();
 	this->maps.clear();
 	this->aiData.clear();
 }
@@ -55,6 +61,22 @@ void WorldServer::loadAI() {
 		if (vfsEntry.getContent().getSize()>0) {
 			this->aiData[i] = new AIP(vfsEntry.getPathInVFS(), vfsEntry);
 		}
+	}
+}
+
+void WorldServer::loadAnimationData() {
+	this->logger.info("Loading NPC animations...");
+	//NPCs
+	VFS::Entry& entry = vfs->getEntry("3DDATA\\NPC\\LIST_NPC.CHR");
+	this->chrFile = std::shared_ptr<CHR>(new CHR(entry.getPathInVFS(), entry));
+
+	this->logger.info("Loading player animations...");
+	//Player
+	auto& fileMotionEntry = vfs->getEntry("3DDATA\\STB\\FILE_MOTION.STB");
+	STB stbMotionFile(fileMotionEntry.getPathInVFS(), fileMotionEntry.getContent());
+	for (dword_t i = 0; i < stbMotionFile.getEntryAmount(); i++) {
+		String motionPath = stbMotionFile.getEntry(i)->get(0);
+		this->playerAnimations.push_back(new ZMO(motionPath, vfs->getEntry(motionPath)));
 	}
 }
 
@@ -160,29 +182,31 @@ void WorldServer::onRequestsFinished() {
 
 void WorldServer::doMapActions(Map* map) {
 	while (this->isActive()) {
-		auto entitiesOnMap = map->getAllEntitiesOnMap();
-		for (auto it = entitiesOnMap.begin(); it != entitiesOnMap.end();) {
-			auto currentEntity = it->second;
-			if (!currentEntity->isActive()) {
+		if (map->isActive()) {
+			auto entitiesOnMap = map->getAllEntitiesOnMap();
+			for (auto it = entitiesOnMap.begin(); it != entitiesOnMap.end();) {
+				auto currentEntity = it->second;
+				if (!currentEntity->isActive()) {
 
-				it = entitiesOnMap.erase(it);
-				map->removeEntity(currentEntity);
+					it = entitiesOnMap.erase(it);
+					map->removeEntity(currentEntity);
 
-				delete currentEntity;
-				currentEntity = nullptr;
+					delete currentEntity;
+					currentEntity = nullptr;
 
-				continue;
+					continue;
+				}
+				if (currentEntity->isPlayer()) {
+					currentEntity = currentEntity;
+				}
+
+				currentEntity->movementProc();
+				map->updateEntity(currentEntity);
+				currentEntity->doAction();
+				it++;
 			}
-			if (currentEntity->isPlayer()) {
-				currentEntity = currentEntity;
-			}
-
-			currentEntity->movementProc();
-			map->updateEntity(currentEntity);
-			currentEntity->doAction();
-			it++;
+			map->clearInvalidEntities();
 		}
-		map->clearInvalidEntities();
 		Sleep(20);
 	}
 }

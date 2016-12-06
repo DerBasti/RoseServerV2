@@ -48,7 +48,7 @@ void Map::createSectors(std::vector<VFS::Entry>& entries) {
 	Position positionMin(ifoMin * IFO::DEFAULT_SECTOR_SIZE, ifoMin * IFO::DEFAULT_SECTOR_SIZE);
 
 	const dword_t subSectorSize = this->getZoneData()->getSectorSize();
-	const word_t amountOfSectorsOnAxis = (mapSize / subSectorSize) + 1;
+	const word_t amountOfSectorsOnAxis = static_cast<word_t>(mapSize / subSectorSize) + 1;
 
 	this->sectorDescriptor = SectorDimensions(amountOfSectorsOnAxis, amountOfSectorsOnAxis);
 

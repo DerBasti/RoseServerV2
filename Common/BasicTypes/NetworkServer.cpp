@@ -63,7 +63,7 @@ sockaddr_in NetworkInterface::GetSockaddrFromIpAndPort(String ip, unsigned int p
 }
 
 NetworkClient::NetworkClient(SOCKET_TYPE sock, struct sockaddr_in addr) : NetworkClient(sock, &addr) {}
-NetworkClient::NetworkClient(SOCKET_TYPE sock, struct sockaddr_in *addr) : NetworkClient(NetworkInterface(sock, addr)) {}
+NetworkClient::NetworkClient(SOCKET_TYPE sock, struct sockaddr_in *addr) : NetworkInterface(sock, addr) {}
 
 void NetworkClient::connect() {
 	sockaddr_in addr;

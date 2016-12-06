@@ -10,12 +10,14 @@
 class Monster : public NPC {
 private:
 	class MonsterSpawn* spawnReference;
+	std::map<Entity*, dword_t> attackers;
 public:
 	Monster(const word_t typeId, const byte_t mapId, const Position& pos);
 	Monster(const word_t typeId, const byte_t mapId, const Position& pos, class MonsterSpawn* spawnRef);
 	Monster(const word_t typeId, const byte_t mapId, const Position& pos, class MonsterSpawn* spawnRef, Entity* owner);
 	virtual ~Monster();
 
+	void addDamage(Entity* dmgDealer, const dword_t damage);
 	void onDeath();
 
 	__inline MonsterSpawn* getSpawn() const {

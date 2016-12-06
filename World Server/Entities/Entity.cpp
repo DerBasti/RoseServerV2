@@ -1,7 +1,17 @@
 #include "Entity.h"
 #include "Player.h"
+#include "..\FileTypes\ZMO.h"
 #include "..\..\Common\PacketIDs.h"
 #include "..\..\Common\BasicTypes\Randomizer.h"
+
+FunctionBinder <Entity, dword_t, void(Entity::*)()> ZMOTRIGGER_TO_ID = {
+	{ 31, &Entity::doNormalAttack },
+	{ 32, &Entity::doNormalAttack },
+	{ 33, &Entity::doNormalAttack },
+	{ 34, &Entity::doSkillAttack },
+	{ 35, &Entity::doNormalAttack },
+	{ 36, &Entity::doBuff }
+};
 
 Entity::Entity() {
 	basicIngameInformation = new EntityInfo();
@@ -9,9 +19,7 @@ Entity::Entity() {
 	stats = new Stats();
 	visuality = new Visuality();
 	combat = new Combat();
-	this->getCombatInformation()->getAttackTimer().addTrigger(450, [this]() {
-		this->attackRoutine();
-	});
+	currentAnimation = nullptr;
 
 	auto onNewSectorFunc = [&](Map::Sector* sector) {
 		if (sector == nullptr) {
@@ -78,76 +86,108 @@ void Entity::updateStats() {
 };
 
 void Entity::movementProc() {
+	auto& attackTimer = this->getCombatInformation()->getAttackTimer();
+
+	//Call update timer upon finishing within this function
+	Autoclose<> attackTimerUpdate;
+	attackTimerUpdate.setAutoclose([&]() {
+		attackTimer.update();
+	});
 	auto target = this->getCombatInformation()->getTarget();
 	bool isTargetValid = target != nullptr;
 
 	const Position& current = this->getPositionInformation()->getCurrent();
 	const Position& dest = (isTargetValid ? target->getPositionInformation()->getDestination() : this->getPositionInformation()->getDestination());
+	Position diff = (dest - current);
 
-	float distance = (current - dest).toLength();
-	float threshold = (isTargetValid ? this->getStats()->getAttackRange() : 10);
+	float threshold = (isTargetValid ? (this->getStats()->getAttackRange() + target->getSize()) : 10);
+	float distance = diff.toLength() - threshold; //distance gets reduced by the actual reach (e.g. weapon range)
 
-	distance -= threshold; //distance gets reduced by the actual reach (e.g. weapon range)
-	auto& attackTimer = this->getCombatInformation()->getAttackTimer();
-	if (distance <= 0.1f) {
-		if (!attackTimer.isRunning() && isTargetValid) {
-			//Assume we are in reach of the enemy (if there is one).
-			attackTimer.start();
-		}
-		attackTimer.update();
-		this->getPositionInformation()->updateDuration();
-		return;
-	}
-	else if (attackTimer.isRunning() && distance > 0.1f) {
-		attackTimer.softStop();
-		attackTimer.update();
-		this->getPositionInformation()->updateDuration();
-		return;
-	}
-
-	float timePassed = static_cast<float>(this->getPositionInformation()->updateDuration()); //should never take longer than MAX_FLOAT
 	float necessaryTime = (distance / static_cast<float>(this->getStats()->getMovementSpeed())) * 1000.0f;
-	if (timePassed >= necessaryTime) {
-		if (isTargetValid) {
-			attackTimer.start(timePassed - necessaryTime); //
+	float timePassed = static_cast<float>(this->getPositionInformation()->updateDuration());
+
+	bool playerFlag = this->isPlayer();
+	if (playerFlag && isTargetValid) {
+		Player* p = static_cast<Player*>(this);
+		if (p->getDebuggingFlags().getPrintTargetPosition()) {
+			p->sendDebugMessage(String("Position of target: ") + dest.toString());
 		}
-		else {
-			this->getPositionInformation()->setCurrent(this->getPositionInformation()->getDestination());
-			return;
-		}
-		timePassed = necessaryTime;
 	}
-	float pathTraveled = timePassed * static_cast<float>(this->getStats()->getMovementSpeed()) / 1000.0f;
-	Position ratio = (dest - current).normalize();
-	ratio *= pathTraveled;
-	this->getPositionInformation()->setCurrent(Position(current.getX() + ratio.getX(), current.getY() + ratio.getY()));
+
+	Position targetPosition;
+	if (timePassed < necessaryTime && distance > 0.1f) { //basically: we didn't reach our target
+		//Is currently an attack ongoing? If so, don't do anything.
+		if (attackTimer.isRunning()) {
+			attackTimer.softStop();
+			targetPosition = current;
+		}
+		else { //No attack to do and we have a destination to reach.
+			diff.normalize();
+
+			float totalMoved = (timePassed * static_cast<float>(this->getStats()->getMovementSpeed()) / 1000.0f);
+			float movedX = totalMoved * diff.getX();
+			float movedY = totalMoved * diff.getY();
+
+			targetPosition = Position(current.getX() + movedX, current.getY() + movedY);
+		}
+	} else {
+		//We are in range. Are we attacking or not?
+		if (isTargetValid) {
+			if (!attackTimer.isRunning()) {
+				attackTimer.start();
+				this->setAttackMotion();
+			}
+			//In case we are attacking, stand still
+			targetPosition = current;
+		} else { //No target and we are in range -> current = dest
+			targetPosition = dest;
+		}
+	}
+	this->getPositionInformation()->setCurrent(targetPosition);
 	return;
 }
 
 void Entity::doAction() {
 }
 
-void Entity::attackRoutine() {
+void Entity::doNormalAttack() {
 	auto target = this->getCombatInformation()->getTarget();
 	if (!target) {
 		return;
 	}
 	word_t damage = Randomize::getUInt(10, 30);
+	target->addDamage(this, damage);
+}
+
+void Entity::doSkillAttack() {
+
+}
+
+void Entity::doBuff() {
+
+}
+
+
+void Entity::addDamage(Entity* dmgDealer, const dword_t damage) {
+	if (this->isNPC()) {
+		return;
+	}
 
 	word_t flag = 0x00;
-	if (damage >= target->getStats()->getHP()) {
-		target->getStats()->setHP(0);
+	if (damage >= this->getStats()->getHP()) {
+		this->getStats()->setHP(0);
 		flag |= 0x8000; //Death
-		target->onDeath();
+		this->onDeath();
 
 		this->getCombatInformation()->clear();
+		dmgDealer->getCombatInformation()->clear();
 	}
 	else {
-		target->getStats()->setHP(target->getStats()->getHP() - damage);
+		this->getStats()->setHP(this->getStats()->getHP() - damage);
 	}
 	Packet pak(PacketID::World::Response::BASIC_ATTACK);
+	pak.addWord(dmgDealer->getBasicInformation()->getLocalId());
 	pak.addWord(this->getBasicInformation()->getLocalId());
-	pak.addWord(target->getBasicInformation()->getLocalId());
 	pak.addWord((damage & 0x7FF) | flag);
 	this->sendToVisible(pak);
 }
@@ -231,6 +271,29 @@ bool Entity::sendNewTarget() {
 	return true;
 }
 
+void Entity::setAttackMotion() {
+	auto& attackTimer = this->getCombatInformation()->getAttackTimer();
+	if (this->currentAnimation != nullptr) {
+		WrappingTriggerClock wtc(false, currentAnimation->getDefaultPlayoutTime());
+		auto& trigger = currentAnimation->getTrigger();
+		for (auto it = trigger.cbegin(); it != trigger.cend(); it++) {
+			auto& pair = (*it);
+			wtc.addTrigger(pair.first, [&]() {
+				auto func = ZMOTRIGGER_TO_ID.getProcessingFunction(pair.second);
+				if (func != nullptr) {
+					(this->*func)();
+				}
+			});
+		}
+		wtc.adjustTriggerTimes((this->getStats()->getAttackSpeed() - 100) / 100.0f);
+
+		attackTimer.copyTrigger(wtc);
+	}
+	else {
+		attackTimer.softStop();
+	}
+}
+
 word_t Combat::getTargetId() const {
 	return (this->getTarget() == nullptr ? 0x00 : this->getTarget()->getBasicInformation()->getLocalId());
 }
@@ -250,7 +313,7 @@ bool Entity::sendToVisible(const Packet& pak, Entity* exception) {
 		std::for_each(sector->beginPlayer(), sector->endPlayer(), [&](std::pair<const word_t, Entity*> otherPair) {
 			Player *player = static_cast<Player*>(otherPair.second);
 			if (player->isActive() && player->getBasicInformation()->isIngame() && player != exception) {
-				result &= player->getNetworkInterface()->sendPacket(pak);
+				result &= player->sendPacket(pak);
 			}
 		});
 	}
@@ -263,29 +326,6 @@ bool Entity::sendCurrentStance() {
 	pak.addByte(this->getStats()->getStance()->getId());
 	pak.addWord(this->getStats()->getMovementSpeed());
 	return this->sendToVisible(pak);
-}
-
-void Entity::addDamage(Entity* dmgDealer, const dword_t damage) {
-	if (this->isNPC()) {
-		return;
-	}
-	word_t flag = 0x00;
-	if (damage >= this->getStats()->getHP()) {
-		this->getStats()->setHP(0);
-		flag = 0x8000;
-
-		this->onDeath();
-	}
-	else {
-		this->getStats()->setHP(this->getStats()->getHP() - damage);
-	}
-	Packet pak(PacketID::World::Response::BASIC_ATTACK);
-	pak.addWord(dmgDealer->getBasicInformation()->getLocalId());
-	pak.addWord(this->getBasicInformation()->getLocalId());
-	pak.addWord((damage & 0x7FF) | flag);
-	if (flag & 0x8000) {
-		this->sendToVisible(pak);
-	}
 }
 
 

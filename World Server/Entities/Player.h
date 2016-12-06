@@ -6,6 +6,7 @@
 #endif
 
 #include "..\..\Common\ROSESocketClient.h"
+#include "..\..\Common\ROSEDummyClient.h"
 #include "..\..\Common\BasicTypes\FunctionBinder.h"
 #include "Entity.h"
 
@@ -182,6 +183,7 @@ public:
 	Attributes() : Attributes(15, 15, 15, 15, 10, 10) {}
 	Attributes(const word_t str, const word_t dex, const word_t Int, const word_t con, const word_t cha, const word_t sen) {
 		this->setStrength(str);
+		this->externalCha = this->externalCon = this->externalDex = this->externalInt = this->externalSen = this->externalStr = 0;
 		this->setDexterity(dex);
 		this->setIntelligence(Int);
 		this->setConcentration(con);
@@ -323,6 +325,9 @@ public:
 	}
 	__inline void setExperience(const dword_t exp) {
 		this->experience = exp;
+	}
+	__inline void addExperience(const dword_t addExp) {
+		this->setExperience(this->getExperience() + addExp);
 	}
 	__inline void setOnExperienceAdded(std::function<void(dword_t)> f)  {
 		this->experience.setOnNewValueAssigned(f == nullptr ? [](dword_t){} : f);
@@ -691,6 +696,28 @@ public:
 		const static byte_t CART_GAUGE = 0x61;
 	};
 private:
+	class Debugging {
+		private:
+			bool printTargetPosition;
+			bool printOwnPosition;
+		public:
+			Debugging() {
+				printOwnPosition = printTargetPosition = false;
+			}
+			__inline bool getPrintTargetPosition() const {
+				return this->printTargetPosition;
+			}
+			__inline void setPrintTargetPosition(bool flag) {
+				this->printTargetPosition = flag;
+			}
+			__inline bool getPrintOwnPosition() const {
+				return this->printOwnPosition;
+			}
+			__inline void setPrintOwnPosition(bool flag) {
+				this->printOwnPosition = flag;
+			}
+	};
+	Debugging debuggingFlags;
 	static FunctionBinder<Player, unsigned long, bool(Player::*)(const Packet&)> PACKET_FUNCTIONS;
 
 	Account *accountInfo;
@@ -698,9 +725,11 @@ private:
 	Attributes *attributes;
 	QuestJournal* questJournal;
 
+	std::mutex socketMutex;
 	ROSESocketClient* networkInterface;
 
 	dword_t getExpForLevelUp() const;
+	void setAttackMotion();
 
 	void updateAttributes();
 
@@ -766,6 +795,8 @@ public:
 	void doAction();
 	virtual void updateStats();
 
+	bool sendPacket(const Packet& pak);
+
 	__inline Account* getAccountInfo() const {
 		return this->accountInfo;
 	}
@@ -780,17 +811,22 @@ public:
 		return this->questJournal;
 	}
 
-	__inline ROSESocketClient* getNetworkInterface() const {
+	__inline Debugging& getDebuggingFlags() {
+		return this->debuggingFlags;
+	}
+
+	__inline NetworkClient* getNetworkInterface() const {
 		return this->networkInterface;
 	}
 
 	__inline bool isPlayer() const { return true; }
 
 	__inline bool isActive() const {
-		return this->getNetworkInterface() != nullptr;
+		return this->getNetworkInterface() != nullptr && dynamic_cast<ROSEDummyClient*>(this->getNetworkInterface()) == nullptr;
 	}
+
 	__inline void invalidateNetworkInterface() {
-		this->networkInterface = nullptr;
+		this->networkInterface = new ROSEDummyClient();
 	}
 	void onDisconnect();
 };
@@ -804,6 +840,7 @@ public:
 	static void currentPosition(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
 	static void setExp(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
 	static void setLevel(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
+	static void targetInformation(Player* cmdExecutor, SharedArrayPtr<String>& cmdAsTokens);
 };
 
 #endif

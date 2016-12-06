@@ -5,7 +5,10 @@ VFS* VFS::instance = nullptr;
 
 VFS::VFS(const String& gameFolder, bool excludeDifferentFileEndings, std::vector<String> fileEndingsToLoad) {
 	this->gameFolder = gameFolder;
-	if (File(gameFolder).isFolder() && (this->vfsDLLHandle = (void*)::LoadLibraryA((this->gameFolder + String("TriggerVFS.dll")).toConstChar())) != nullptr) {
+	if (!this->gameFolder.endsWith("\\")) {
+		this->gameFolder += "\\";
+	}
+	if (File(this->gameFolder).isFolder() && (this->vfsDLLHandle = (void*)::LoadLibraryA((this->gameFolder + String("TriggerVFS.dll")).toConstChar())) != nullptr) {
 		HMODULE triggerVFS = static_cast<HMODULE>(this->vfsDLLHandle);
 		this->OpenVFS = reinterpret_cast<OpenVFS_FUNCPTR>(GetProcAddress(triggerVFS, "_OpenVFS@8"));
 		this->CloseVFS = reinterpret_cast<CloseVFS_FUNCPTR>(GetProcAddress(triggerVFS, "_CloseVFS@4"));
@@ -31,6 +34,9 @@ VFS::VFS(const String& gameFolder, bool excludeDifferentFileEndings, std::vector
 		this->extractFilePaths(vfsNames, fileEndingsToLoad, excludeDifferentFileEndings);
 		this->extractFileContent(fileEndingsToLoad);
 		std::cout << "Indexing finished.\n";
+	}
+	else {
+		std::cout << "Please select a proper ROSE game folder.\n";
 	}
 }
 		

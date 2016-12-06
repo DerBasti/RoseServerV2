@@ -78,4 +78,24 @@ Monster::~Monster() {
 
 void Monster::onDeath() {
 	//Give Exp?
+	dword_t basicExp = (this->getStats()->getLevel() * this->getNPCData()->get(NPCSTB::Columns::EXPERIENCE_COLUMN).toUInt());
+	double currentRatio = 0.0f;
+	for (auto it = this->attackers.cbegin(); it != this->attackers.cend(); it++) {
+		Entity* dmgDealer = (*it).first;
+		if (dmgDealer == nullptr || !dmgDealer->isPlayer()) {
+			continue;
+		}
+		Player* player = static_cast<Player*>(dmgDealer);
+		dword_t dmg = (*it).second;
+		currentRatio = dmg / static_cast<double>(this->getStats()->getMaxHP());
+		player->getCharacter()->addExperience(static_cast<dword_t>(currentRatio * basicExp));
+	}
+}
+
+void Monster::addDamage(Entity* dmgDealer, const dword_t damage) {
+	this->attackers[dmgDealer] += damage;
+	if (damage > this->getStats()->getHP()) { //double said damage
+		this->attackers[dmgDealer] += (damage - this->getStats()->getHP())*2;
+	}
+	Entity::addDamage(dmgDealer, damage);
 }

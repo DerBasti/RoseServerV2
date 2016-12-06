@@ -5,6 +5,7 @@
 #pragma once
 #endif
 
+#include "..\..\Common\BasicTypes\FunctionBinder.h"
 #include "..\..\Common\BasicTypes\StoppableClock.h"
 #include "..\..\Common\BasicTypes\Observable.h"
 #include "..\Map.h"
@@ -449,8 +450,7 @@ protected:
 	Stats* stats;
 	Visuality* visuality;
 	Combat* combat;
-
-	virtual void attackRoutine();
+	class ZMO* currentAnimation;
 
 	virtual void updateAttackPower() {}
 	virtual void updateMaxHP() {}
@@ -474,7 +474,10 @@ protected:
 	virtual bool sendCurrentStance();
 
 	virtual bool sendNewTarget();
+
+	virtual void setAttackMotion();
 public:
+
 	Entity();
 	virtual ~Entity();
 
@@ -496,6 +499,9 @@ public:
 
 	virtual void updateStats();
 	void movementProc();
+	virtual void doNormalAttack();
+	virtual void doSkillAttack();
+	virtual void doBuff();
 
 	virtual void doAction();
 
@@ -505,6 +511,8 @@ public:
 	virtual bool isNPC() const { return false; }
 	virtual bool isMonster() const { return false; }
 
+	virtual float getSize() const { return 100.0f; }
+
 	virtual void onDeath() {}
 
 	virtual bool isActive() const {
@@ -512,5 +520,7 @@ public:
 	}
 	virtual void addDamage(Entity* dmgDealer, const dword_t damage);
 };
+
+extern FunctionBinder <Entity, dword_t, void(Entity::*)()> ZMOTRIGGER_TO_ID;
 
 #endif
