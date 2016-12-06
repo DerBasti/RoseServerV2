@@ -130,7 +130,9 @@ public:
 	}
 
 	__inline void softStop() {
-		this->softStopFlag = true;
+		if (this->isRunning()) {
+			this->softStopFlag = true;
+		}
 	}
 
 	virtual unsigned long long getDuration() {
@@ -169,7 +171,30 @@ public:
 			}
 			this->currentTrigger = 0;
 		});
+		this->currentTrigger = 0;
 	}
+
+	void copyTrigger(const WrappingTriggerClock& wtc) {
+		this->trigger.clear();
+		this->trigger.insert(this->trigger.begin(), wtc.trigger.begin(), wtc.trigger.end());
+
+		this->triggerTimes.clear();
+		this->triggerTimes.insert(this->triggerTimes.begin(), wtc.triggerTimes.begin(), wtc.triggerTimes.end());
+		
+		this->setWrappingTime(wtc.getWrappingTime());
+
+		this->currentTrigger = 0;
+	}
+
+	void adjustTriggerTimes(const float percentageFaster) {
+		float adjustedTime = 1.0f - percentageFaster;
+		for (unsigned int i = 0; i < this->triggerTimes.size(); i++) {
+			this->triggerTimes[i] = static_cast<unsigned long long>(this->triggerTimes[i] * adjustedTime);
+		}
+		this->setWrappingTime(static_cast<unsigned long long>(this->getWrappingTime() * adjustedTime));
+		this->update();
+	}
+
 	virtual void start() {
 		this->start(0);
 	}
